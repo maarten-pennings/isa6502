@@ -19,7 +19,14 @@ On AVR, that is known as PROGMEM.
 Note that the AVRs have a Harvard architecture.
 This means that every address occurs twice, once as DATAMEM (RAM), once as PROGMEM (flash).
 This means that if a pointer like `char * p` has the value 0x1000, it could address location 0x1000 in RAM 
-or 0x1000 in flash. See details [below](#progmem-details).
+or 0x1000 in flash. 
+
+Most of this is hidden in the library.
+Except for the return values of type `char *`.
+If you want to `print` those, embed them in the `f(...)` macro.
+If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_p`.
+
+See details [below](#progmem-details).
 
 ## Examples
 
