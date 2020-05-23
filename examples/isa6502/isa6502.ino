@@ -6,6 +6,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
   Serial.print( F("Welcome to isa6502 V") ); Serial.println(ISA_VERSION);
+  Serial.println();
   
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     Serial.print(aix); Serial.print("; ");
@@ -25,6 +26,7 @@ void setup() {
     // Then, find the address mode by name, and print the aix
     Serial.println( isa_addrmode_find(aname) );
   }
+  Serial.println();
 
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     Serial.print(iix); Serial.print("; ");
@@ -44,8 +46,38 @@ void setup() {
     // Then, find the instruction by name, and print the iix
     Serial.println( isa_instruction_find(iname) );
   }
+  Serial.println();
+
+  Serial.print("  |");
+  for( int x=0; x<16; x++ ) {
+    Serial.print("0");
+    Serial.print(x,HEX);
+    Serial.print(" |");
+  }
+  Serial.println();
+  for( int y=0; y<16; y++) {
+    Serial.print(y,HEX);
+    Serial.print("0|");
+    for( int x=0; x<16; x++ ) {
+      int opcode=y*16+x;
+      int iix= isa_opcode_iix(opcode);
+      if( iix!=0 ) Serial.print(f(isa_instruction_iname(iix))); else Serial.print("   "); 
+      Serial.print("|");
+    }
+    Serial.println();
+    Serial.print("  |");
+    for( int x=0; x<16; x++ ) {
+      int opcode=y*16+x;
+      int aix= isa_opcode_aix(opcode);
+      if( aix!=0 ) Serial.print(f(isa_addrmode_aname(aix))); else Serial.print("   ");
+      Serial.print("|");
+    }
+    Serial.println();
+  }
+  Serial.println();
 
 }
+
 
 void loop() {
 }
