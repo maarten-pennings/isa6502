@@ -25,14 +25,15 @@ Most of this is hidden in the library.
 Except for the return values of type `char *`.
 If you want to `print` those, embed them in the `f(...)` macro.
 If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_p`.
+See the [examples](#examples).
 
-See details [below](#progmem-details).
+For details on PROGMEM see [below](#progmem-details).
 
 ## Examples
 
 There is a simple [example](examples/isa6502/isa6502.ino) that prints all tables.
 
-Note that is shows how to print using `f()`:
+Note that it shows how to print using `f()`:
 
 ```cpp
   Serial.print(  f(isa_addrmode_aname(aix)) ); 
