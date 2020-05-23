@@ -14,14 +14,12 @@ The following tables are available:
 - opcode  
   example: 0xA9 (`LDA.IMM`)
   
-## PROGMEM
-
 In order to save RAM, the tables are stored in flash.
 On AVR, that is known as PROGMEM.
 Note that the AVRs have a Harvard architecture.
 This means that every address occurs twice, once as DATAMEM (RAM), once as PROGMEM (flash).
 This means that if a pointer like `char * p` has the value 0x1000, it could address location 0x1000 in RAM 
-or 0x1000 in flash. See detail [below](#progmem-details).
+or 0x1000 in flash. See details [below](#progmem-details).
 
 ## Examples
 
