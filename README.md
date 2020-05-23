@@ -30,7 +30,20 @@ See details [below](#progmem-details).
 
 ## Examples
 
-There is a simple [example](isa6502/isa6502.ino) that prints all tables.
+There is a simple [example](examples/isa6502/isa6502.ino) that prints all tables.
+
+Note that is shows how to print using `f()`:
+
+```cpp
+  Serial.print(  f(isa_addrmode_aname(aix)) ); 
+```
+
+and how to compare a string from a table using an `_p()` variant:
+
+```cpp
+  char aname[4]; 
+  strcpy_P( aname, isa_addrmode_aname(aix) );
+```
 
 ## PROGMEM details
 
