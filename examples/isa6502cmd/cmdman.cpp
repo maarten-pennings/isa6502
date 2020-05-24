@@ -163,6 +163,76 @@ static void cmdman_printfind(char * word) {
 }
 
 
+void cmdman_printtable_opcode_line() {
+  Serial.print(F("+--+"));
+  for( int x=0; x<16; x++ ) {
+    Serial.print(F("---")); Serial.print('+');
+  }
+  Serial.println();
+}
+void cmdman_printtable_opcode() {
+  cmdman_printtable_opcode_line();
+  Serial.print(F("|  |"));
+  for( int x=0; x<16; x++ ) {
+    Serial.print('0'); Serial.print(x,HEX); Serial.print(' '); Serial.print('|');
+  }
+  Serial.println();
+  for( int y=0; y<16; y++) {
+    if( y%4==0 ) cmdman_printtable_opcode_line();
+    Serial.print('|'); Serial.print(y,HEX); Serial.print('0'); Serial.print('|');
+    for( int x=0; x<16; x++ ) {
+      int opcode=y*16+x;
+      int iix= isa_opcode_iix(opcode);
+      if( iix!=0 ) Serial.print(f(isa_instruction_iname(iix))); else Serial.print(F("   ")); 
+      Serial.print('|');
+    }
+    Serial.println();
+    Serial.print(F("|  |"));
+    for( int x=0; x<16; x++ ) {
+      int opcode=y*16+x;
+      int aix= isa_opcode_aix(opcode);
+      if( aix!=0 ) Serial.print(f(isa_addrmode_aname(aix))); else Serial.print(F("   "));
+      Serial.print('|');
+    }
+    Serial.println();
+  }
+  cmdman_printtable_opcode_line();
+}
+
+
+void cmdman_printtable_inst_line() {
+  Serial.print(F("+---+"));
+  for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
+    Serial.print(F("---")); Serial.print('+');
+  }
+  Serial.println();
+}
+void cmdman_printtable_inst() {
+  cmdman_printtable_inst_line();
+  Serial.print(F("|   |"));
+  for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
+    Serial.print(f(isa_addrmode_aname(aix))); Serial.print('|');
+  }
+  Serial.println();
+  for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
+    if( iix%8==1 ) cmdman_printtable_inst_line();
+    Serial.print('|');
+    Serial.print(f(isa_instruction_iname(iix))); 
+    Serial.print('|');
+    for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
+      uint8_t opcode= isa_instruction_opcodes(iix,aix);
+      if( opcode!=ISA_OPCODE_INVALID ) { 
+        Serial.print(' '); if( opcode<16 ) Serial.print('0'); Serial.print(opcode,HEX); 
+      } else Serial.print(F("   "));
+      Serial.print('|');
+    }
+    Serial.println();
+  }
+  cmdman_printtable_inst_line();
+}
+
+
+
 // The statistics command handler
 static void cmdman_main(int argc, char * argv[]) {
   // Note cmd_isprefix needs a PROGMEM string. PSTR stores the string in PROGMEM.
@@ -170,12 +240,26 @@ static void cmdman_main(int argc, char * argv[]) {
     cmdman_printindex();
     return;
   }
-  if( argc==2 && cmd_isprefix(PSTR("find"),argv[1]) ) { 
-    Serial.println(F("ERROR: man: find needs a word"));
+  if( cmd_isprefix(PSTR("find"),argv[1]) ) { 
+    if( argc==2 ) { Serial.println(F("ERROR: man: find: need a search word")); return; }
+    if( argc==3 ) { cmdman_printfind(argv[2]); return; }
+    Serial.println(F("ERROR: man: find: only one search word allowed")); 
     return;
   }
-  if( argc==2 && cmd_isprefix(PSTR("regs"),argv[1]) ) { 
-    cmdman_printregs();
+  if( cmd_isprefix(PSTR("regs"),argv[1]) ) { 
+    if( argc==2 ) { cmdman_printregs(); return; }
+    Serial.println(F("ERROR: man: regs: no arguments allowed")); 
+    return;
+  }
+  if( cmd_isprefix(PSTR("table"),argv[1]) ) { 
+    if( argc==2 ) { Serial.println(F("ERROR: man: table: need a type")); return; }
+    if( argc==3 ) { 
+      if( cmd_isprefix(PSTR("opcode"),argv[2]) ) { cmdman_printtable_opcode(); return; }
+      if( cmd_isprefix(PSTR("inst"),argv[2]) ) { cmdman_printtable_inst(); return; }
+      Serial.println(F("ERROR: man: table: unknown type")); 
+      return;
+    }
+    Serial.println(F("ERROR: man: find: only one type allowed")); 
     return;
   }
   if( argc==2 ) {
@@ -190,20 +274,17 @@ static void cmdman_main(int argc, char * argv[]) {
     Serial.println(F("ERROR: man: must have <inst>, <addrmode>, or <hexnum> in range 0..ff"));
     return;
   }
-  if( argc==3 && cmd_isprefix(PSTR("find"),argv[1]) ) { 
-    cmdman_printfind(argv[2]);
-    return;
-  }
   if( argc==3 ) { 
     int iix= isa_instruction_find(argv[1]);
     if( iix==0 ) { Serial.println(F("ERROR: man <inst> <addrmode>: <inst> does not exist")); return; }
     int aix= isa_addrmode_find(argv[2]);
     if( aix==0 ) { Serial.println(F("ERROR: man <inst> <addrmode>: <addrmode> does not exist")); return; }
     uint8_t opcode= isa_instruction_opcodes(iix,aix ); 
-    if( opcode==ISA_OPCODE_INVALID ) { Serial.println(F("ERROR: man <inst> <addrmode>: <inst> does not have <addrmode>")); return; }
-    cmdman_printopcode(opcode);
-    return;
+    if( opcode!=ISA_OPCODE_INVALID ) { cmdman_printopcode(opcode); return; }
+    Serial.println(F("ERROR: man <inst> <addrmode>: <inst> does not have <addrmode>")); 
+    return; 
   }
+  Serial.println(F("ERROR: man: unexpected arguments")); 
 }
 
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
@@ -221,6 +302,8 @@ const char cmdman_longhelp[] PROGMEM =
   "- lists the instruction types, or addressing modes with <word> in description\n"
   "- word may contain * (matches zero or more chars)\n"
   "- word may contain ? (matches any char)\n"
+  "SYNTAX: man table [ opcode | inst ]\n"
+  "- prints a table of opcodes respectively instructions\n"
   "SYNTAX: man regs\n"
   "- lists details of the registers\n"
 ;
