@@ -7,7 +7,7 @@
 #include "stdint.h"
 
 
-#define ISA_VERSION 3
+#define ISA_VERSION 4
 
 
 // WARNING
