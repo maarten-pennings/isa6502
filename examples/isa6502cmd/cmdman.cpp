@@ -6,22 +6,28 @@
 #include "isa.h"
 
 
-int cmdman_findmid(const char*stack,const char*needle);
+static int cmdman_findmid(const char*stack,const char*needle);
 // Returns 0 if needle is found at pos 0 of stack, otherwise returns -1.
 // Note that needle may contain '?' (matches any char), or '*' matching 0 or more chars.
-int cmdman_findleft(const char*stack,const char*needle) {
+// Note that stack is in PROGMEM and needle in RAM.
+static int cmdman_findleft(const char*stack,const char*needle) {
+  //Serial.print("lft('"); Serial.print(f(stack)); Serial.print("','"); Serial.print(needle); Serial.println("')");   
   while( *needle!=0 ) {
     if( *needle=='*' ) { int p=cmdman_findmid(stack,needle+1); return p>=0?0:-1; }
-    if( *needle=='?' ) { stack++; needle++; continue; }
-    if( toupper(*needle)==toupper((char)pgm_read_byte(stack)) ) { stack++; needle++; continue; }
+    char _stack= (char)pgm_read_byte(stack);
+    if( *needle=='?' && _stack!='\0' ) { stack++; needle++; continue; }
+    if( toupper(*needle)==toupper(_stack) ) { stack++; needle++; continue; }
     return -1;
   }
   return 0;
 }
 
+
 // Returns position of needle in stack, otherwise returns -1.
 // Note that needle may contain '?' (matches any char), or '*' matching 0 or more chars.
-int cmdman_findmid(const char*stack,const char*needle) {
+// Note that stack is in PROGMEM and needle in RAM.
+static int cmdman_findmid(const char*stack,const char*needle) {
+  //Serial.print("mid('"); Serial.print(f(stack)); Serial.print("','"); Serial.print(needle); Serial.println("')");   
   if( *needle==0 ) { return 0; }
   int ix=0;
   while( pgm_read_byte(stack)!=0 ) {
@@ -121,7 +127,11 @@ static void cmdman_printopcode(uint8_t opcode) {
   Serial.print( F("man: flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
   Serial.print( F("man: size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));
   Serial.print( F("man: time: ") ); Serial.print(isa_opcode_cycles(opcode)); Serial.print(F(" ticks")); 
-  if( isa_opcode_xcycles(opcode)>0 ) { 
+  if( isa_opcode_xcycles(opcode)==1 ) { 
+    Serial.println(F(" (add 1 if page boundary is crossed)")); 
+  } else if( isa_opcode_xcycles(opcode)==2 ) { 
+    Serial.println(F(" (add 1 if branch occurs, add 1 extra if branch to other page)")); 
+  } else if( isa_opcode_xcycles(opcode)>2 ) { // Not in current table
     Serial.print(F(" (upto ")); Serial.print(isa_opcode_xcycles(opcode)); Serial.println(F(" extra)")); 
   } else {
     Serial.println();
@@ -163,14 +173,14 @@ static void cmdman_printfind(char * word) {
 }
 
 
-void cmdman_printtable_opcode_line() {
+static void cmdman_printtable_opcode_line() {
   Serial.print(F("+--+"));
   for( int x=0; x<16; x++ ) {
     Serial.print(F("---")); Serial.print('+');
   }
   Serial.println();
 }
-void cmdman_printtable_opcode() {
+static void cmdman_printtable_opcode() {
   cmdman_printtable_opcode_line();
   Serial.print(F("|  |"));
   for( int x=0; x<16; x++ ) {
@@ -200,22 +210,24 @@ void cmdman_printtable_opcode() {
 }
 
 
-void cmdman_printtable_inst_line() {
+static void cmdman_printtable_inst_line() {
   Serial.print(F("+---+"));
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     Serial.print(F("---")); Serial.print('+');
   }
   Serial.println();
 }
-void cmdman_printtable_inst() {
+static void cmdman_printtable_inst(const char * pattern) {
   cmdman_printtable_inst_line();
   Serial.print(F("|   |"));
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     Serial.print(f(isa_addrmode_aname(aix))); Serial.print('|');
   }
   Serial.println();
+  int n= 0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
-    if( iix%8==1 ) cmdman_printtable_inst_line();
+    if( cmdman_findmid(isa_instruction_iname(iix),pattern)==-1 ) continue;
+    if( n%8==0 ) cmdman_printtable_inst_line();
     Serial.print('|');
     Serial.print(f(isa_instruction_iname(iix))); 
     Serial.print('|');
@@ -227,10 +239,10 @@ void cmdman_printtable_inst() {
       Serial.print('|');
     }
     Serial.println();
+    n++;
   }
   cmdman_printtable_inst_line();
 }
-
 
 
 // The statistics command handler
@@ -252,14 +264,10 @@ static void cmdman_main(int argc, char * argv[]) {
     return;
   }
   if( cmd_isprefix(PSTR("table"),argv[1]) ) { 
-    if( argc==2 ) { Serial.println(F("ERROR: man: table: need a type")); return; }
-    if( argc==3 ) { 
-      if( cmd_isprefix(PSTR("opcode"),argv[2]) ) { cmdman_printtable_opcode(); return; }
-      if( cmd_isprefix(PSTR("inst"),argv[2]) ) { cmdman_printtable_inst(); return; }
-      Serial.println(F("ERROR: man: table: unknown type")); 
-      return;
-    }
-    Serial.println(F("ERROR: man: find: only one type allowed")); 
+    if( argc==3 && cmd_isprefix(PSTR("opcode"),argv[2]) ) { cmdman_printtable_opcode(); return; }
+    if( argc==3 ) { cmdman_printtable_inst(argv[2]); return; }
+    if( argc==2 ) { cmdman_printtable_inst("*"); return; }
+    Serial.println(F("ERROR: man: table: too many arguments")); 
     return;
   }
   if( argc==2 ) {
@@ -287,6 +295,7 @@ static void cmdman_main(int argc, char * argv[]) {
   Serial.println(F("ERROR: man: unexpected arguments")); 
 }
 
+
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
 const char cmdman_longhelp[] PROGMEM = 
   "SYNTAX: man\n"
@@ -298,15 +307,19 @@ const char cmdman_longhelp[] PROGMEM =
   "SYNTAX: man <hexnum> | ( <inst> <addrmode> )\n"
   "- shows the details of the instruction variant with opcode <hexnum>\n"
   "- alternatively, the variant is identified with type and addressing mode\n"
-  "SYNTAX: man find <word>\n"
-  "- lists the instruction types, or addressing modes with <word> in description\n"
-  "- word may contain * (matches zero or more chars)\n"
-  "- word may contain ? (matches any char)\n"
-  "SYNTAX: man table [ opcode | inst ]\n"
-  "- prints a table of opcodes respectively instructions\n"
+  "SYNTAX: man find <pattern>\n"
+  "- lists the instruction types, if <pattern> matches their description\n"
+  "- <pattern> is a series of letters; the match is case insensitive\n"
+  "- <pattern> may contain *, this matches zero or more chars\n"
+  "- <pattern> may contain ?, this matches any char\n"
+  "SYNTAX: man table opcode\n"
+  "- prints a 16x16 table of opcodes\n"
+  "SYNTAX: man table <pattern>\n"
+  "- prints a table of instructions (that match pattern - default pattern is *)\n"
   "SYNTAX: man regs\n"
   "- lists details of the registers\n"
 ;
+
 
 // Note cmd_register needs all strings to be PROGMEM strings. For the short string we do that inline with PSTR.
 void cmdman_register(void) {
