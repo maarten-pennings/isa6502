@@ -1,11 +1,11 @@
-// isa6502.ino - demo of the 6502 data tables
+// isa6502dump.ino - demo of dumping the 6502 data tables
 
 #include "isa.h"
 
 void setup() {
   Serial.begin(115200);
   Serial.println();
-  Serial.print( F("Welcome to isa6502 V") ); Serial.println(ISA_VERSION);
+  Serial.print( F("Welcome to isa6502dump using lib V") ); Serial.println(ISA_VERSION);
   Serial.println();
   
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
