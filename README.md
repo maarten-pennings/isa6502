@@ -7,11 +7,11 @@ This library contains several table that store the 6502 instruction set.
 See for example [this excellent work](https://www.masswerk.at/6502/6502_instruction_set.html).
 The following tables are available:
 
-- addressing mode  
+- **addressing mode**  
   example: `ABS` (absolute), `ZPG` (zero page)
-- instruction  
+- **instruction**  
   example: `LDA` (load accumulator), `JMP` (jump)
-- opcode  
+- **opcode**  
   example: 0xA9 (`LDA.IMM`)
   
 In order to save RAM, the tables are stored in flash.
@@ -25,13 +25,15 @@ Most of this is hidden in the library.
 Except for the return values of type `char *`.
 If you want to `print` those, embed them in the `f(...)` macro.
 If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_p`.
-See the [examples](#examples).
+See the [isa6502dump](#isa6502dump) example.
 
 For details on PROGMEM see [below](#progmem-details).
 
 ## Examples
 
-There is a simple [example](examples/isa6502/isa6502.ino) that prints all tables.
+### isa6502dump
+
+There is a simple [example](examples/isa6502/isa6502dump.ino) that prints all tables.
 
 Note that it shows how to print using `f()`:
 
@@ -45,6 +47,11 @@ and how to compare a string from a table using an `_p()` variant:
   char aname[4]; 
   strcpy_P( aname, isa_addrmode_aname(aix) );
 ```
+
+### isa6502cmd
+
+This is a complex example, using my [command interpreter](https://github.com/maarten-pennings/cmd).
+It adds a "man" page command, which allows the user to query the 6502 tables.
 
 ## PROGMEM details
 
