@@ -33,7 +33,7 @@ For details on PROGMEM see [below](#progmem-details).
 
 ### isa6502dump
 
-There is a simple [example](examples/isa6502/isa6502dump.ino) that prints all tables.
+There is a simple [example](examples/isa6502dump) that prints all tables.
 
 Note that it shows how to print using `f()`:
 
@@ -50,8 +50,9 @@ and how to compare a string from a table using an `_p()` variant:
 
 ### isa6502cmd
 
-This is a complex example, using my [command interpreter](https://github.com/maarten-pennings/cmd).
-It adds a "man" page command, which allows the user to query the 6502 tables.
+This is a [complex example](examples/isa6502cmd), 
+using my [command interpreter](https://github.com/maarten-pennings/cmd).
+It adds a _man page_ [command](examples/isa6502cmd/cmdman.cpp), which allows the user to query the 6502 tables.
 
 ## PROGMEM details
 
