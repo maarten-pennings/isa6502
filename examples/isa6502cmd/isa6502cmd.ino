@@ -1,4 +1,4 @@
-// isa6502cmd.ino - demo of the 6502 data tables
+// isa6502cmd.ino - demo of the 6502 data tables: manual pages
 
 #include "isa.h"
 #include "cmd.h"

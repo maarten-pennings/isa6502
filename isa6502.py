@@ -3,7 +3,7 @@
 import sys
 import datetime
 
-version=3
+version=4
 
 # ADDRESSING MODES ####################################################
 
@@ -22,7 +22,7 @@ class AddrMode : # Defines one addressing mode like ABS
     self.aix= None        # Index into the addrmodes[] list, set by post-processing
     
 addrmodes= [ # Global variable of all addressing modes
-  AddrMode("0Ea", 0, "?Error description", "??? syntax"), # addrmode-0
+  AddrMode("0Ea", 1, "?Error description", "??err??"), # addrmode-0
 
   AddrMode("IMP", 1, "Implied", "OPC"),
   AddrMode("IMM", 2, "Immediate", "OPC #NN"),
@@ -39,7 +39,7 @@ addrmodes= [ # Global variable of all addressing modes
   AddrMode("INX", 2, "Zero page, indexed with x, indirect", "OPC (LL,X)"),
   AddrMode("INY", 2, "Zero page, indirect, indexed with y", "OPC (LL),Y"),
 
-  AddrMode("REL", 2, "Relative to PC", "OPC NN"),
+  AddrMode("REL", 2, "Relative to PC", "OPC +NN"),
   AddrMode("IND", 3, "Indirect", "OPC (HHLL)"),
 ]
 
@@ -70,7 +70,7 @@ class Variant :
     self.amode= amode     # The addressing mode name for this instruction variant (eg "ABS")
     self.opcode= opcode   # The opcode for this instruction variant (0..255)
     self.cycles= cycles   # The (minimal) number of cycles to execute this instruction variant (0..)
-    self.xcycles= xcycles # The worst case additional number of cycles to execute this instruction variant (0..)
+    self.xcycles= xcycles # The worst case additional number of cycles to execute this instruction variant (0..2)
     self.ins= None        # Back-link to instruction, set by constructor of Instruction
 
 class Instruction : 
@@ -88,370 +88,7 @@ instructions= [
     [
     ]
   ),
-  Instruction("AND", "AND Memory with Accumulator", "A <- A AND M", "NvxbdiZc",
-    [ 
-      Variant( addrmode_find_by_name("IMM"), 0x29, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x25, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x35, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x2D, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x3D, 4, 1),
-      Variant( addrmode_find_by_name("ABY"), 0x39, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x21, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x31, 5, 1),
-    ]
-  ),
-  Instruction("ASL", "Shift Left One Bit (Memory or Accumulator)", "C <- [76543210] <- 0", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("ACC"), 0x0A, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x06, 5, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x16, 6, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x0E, 6, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x1E, 7, 0),
-    ]
-  ),
-  Instruction("BCC", "Branch on Carry Clear", "branch on C = 0", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0x90, 2, 2),
-    ]
-  ),
-  Instruction("BCS", "Branch on Carry Set", "branch on C = 1", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0xB0, 2, 2),
-    ]
-  ),
-  Instruction("BEQ", "Branch on Result Zero", "branch on Z = 1", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0xF0, 2, 2),
-    ]
-  ),
-  Instruction("BIT", "Test Bits in Memory with Accumulator", "N<-M.7; V<-M.6; Z<-A AND M", "NVxbdiZc",
-    [
-      Variant( addrmode_find_by_name("ZPG"), 0x24, 3, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x2C, 4, 0),
-    ]
-  ),
-  Instruction("BMI", "Branch on Result Minus", "branch on N = 1", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0x30, 2, 2),
-    ]
-  ),
-  Instruction("BNE", "Branch on Result not Zero", "branch on Z = 0", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0xD0, 2, 2),
-    ]
-  ),
-  Instruction("BPL", "Branch on Result Plus", "branch on N = 0", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0x10, 2, 2),
-    ]
-  ),
-  Instruction("BRK", "Force Break", "interrupt; push PC+2; push PSR", "nvxBdIzc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x00, 7, 0),
-    ]
-  ),
-  Instruction("BVC", "Branch on Overflow Clear", "branch on V = 0", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0x50, 2, 2),
-    ]
-  ),
-  Instruction("BVS", "Branch on Overflow Set", "branch on V = 1", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("REL"), 0x70, 2, 2),
-    ]
-  ),
-  Instruction("CLC", "Clear Carry Flag", "C <- 0", "nvxbdizC",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x18, 2, 0),
-    ]
-  ),
-  Instruction("CLD", "Clear Decimal Mode", "D <- 0", "nvxbDizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xD8, 2, 0),
-    ]
-  ),
-  Instruction("CLI", "Clear Interrupt Disable Bit", "I <- 0 (enabled)", "nvxbdIzc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x58, 2, 0),
-    ]
-  ),
-  Instruction("CLV", "Clear Overflow Flag", "V <- 0", "nVxbdizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xB8, 2, 0),
-    ]
-  ),
-  Instruction("CMP", "Compare Memory with Accumulator", "A - M", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xC9, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xC5, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0xD5, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xCD, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0xDD, 4, 1),
-      Variant( addrmode_find_by_name("ABY"), 0xD9, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0xC1, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0xD1, 5, 1),
-    ]
-  ),
-  Instruction("CPX", "Compare Memory and Index X", "X - M", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xE0, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xE4, 3, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xEC, 4, 0),
-    ]
-  ),
-  Instruction("CPY", "Compare Memory and Index Y", "Y - M", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xC0, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xC4, 3, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xCC, 4, 0),
-    ]
-  ),
-  Instruction("DEC", "Decrement Memory by One", "M <- M - 1", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("ZPG"), 0xC6, 5, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0xD6, 6, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xCE, 6, 0),
-      Variant( addrmode_find_by_name("ABX"), 0xDE, 7, 0),
-    ]
-  ),
-  Instruction("DEX", "Decrement Index X by One", "X <- X - 1", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xCA, 2, 0),
-    ]
-  ),
-  Instruction("DEY", "Decrement Index Y by One", "Y <- Y - 1", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x88, 2, 0),
-    ]
-  ),
-  Instruction("EOR", "Exclusive-or Memory with Accumulator", "A <- A EOR M", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0x49, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x45, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x55, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x4D, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x5D, 4, 1),
-      Variant( addrmode_find_by_name("ABY"), 0x59, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x41, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x51, 5, 1),
-    ]
-  ),
-  Instruction("INC", "Increment Memory by One", "M <- M + 1", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("ZPG"), 0xE6, 5, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0xF6, 6, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xEE, 6, 0),
-      Variant( addrmode_find_by_name("ABX"), 0xFE, 7, 0),
-    ]
-  ),
-  Instruction("INX", "Increment Index X by One", "X <- X + 1", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xE8, 2, 0),
-    ]
-  ),
-  Instruction("INY", "Increment Index Y by One", "Y <- Y + 1", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xC8, 2, 0),
-    ]
-  ),
-  Instruction("JMP", "Jump to New Location", "PCL <- (PC+1); PCH <- (PC+2)", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("ABS"), 0x4C, 3, 0),
-      Variant( addrmode_find_by_name("IND"), 0x6C, 5, 0),
-    ]
-  ),
-  Instruction("JSR", "Jump to New Location Saving Return Address", "push (PC+2); PCL <- (PC+1); PCH <- (PC+2)", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("ABS"), 0x20, 6, 0),
-    ]
-  ),
-  Instruction("LDA", "Load Accumulator with Memory", "A <- M", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xA9, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xA5, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0xB5, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xAD, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0xBD, 4, 1),
-      Variant( addrmode_find_by_name("ABY"), 0xB9, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0xA1, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0xB1, 5, 1),
-    ]
-  ),
-  Instruction("LDX", "Load Index X with Memory", "X <- M", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xA2, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xA6, 3, 0),
-      Variant( addrmode_find_by_name("ZPY"), 0xB6, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xAE, 4, 0),
-      Variant( addrmode_find_by_name("ABY"), 0xBE, 4, 1),
-    ]
-  ),
-  Instruction("LDY", "Load Index Y with Memory", "Y <- M", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xA0, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xA4, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0xB4, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xAC, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0xBC, 4, 1),
-    ]
-  ),
-  Instruction("LSR", "Shift One Bit Right (Memory or Accumulator)", "0 -> [76543210] -> C", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("ACC"), 0x4A, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x46, 5, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x56, 6, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x4E, 6, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x5E, 7, 0),
-    ]
-  ),
-  Instruction("NOP", "No Operation", "skip", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xEA, 2, 0),
-    ]
-  ),
-  Instruction("ORA", "OR Memory with Accumulator", "A <- A OR M", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0x09, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x05, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x15, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x0D, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x1D, 4, 1),
-      Variant( addrmode_find_by_name("ABY"), 0x19, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x01, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x11, 5, 1),
-    ]
-  ),
-  Instruction("PHA", "Push Accumulator on Stack", "push A", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x48, 3, 0),
-    ]
-  ),
-  Instruction("PHP", "Push Processor Status on Stack", "push PSR", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x08, 3, 0),
-    ]
-  ),
-  Instruction("PLA", "Pull Accumulator from Stack", "pull A", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x68, 4, 0),
-    ]
-  ),
-  Instruction("PLP", "Pull Processor Status from Stack", "pull PSR", "NVxbDIZC",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x28, 4, 0),
-    ]
-  ),
-  Instruction("ROL", "Rotate One Bit Left (Memory or Accumulator)", "C <- [76543210] <- C", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("ACC"), 0x2A, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x26, 5, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x36, 6, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x2E, 6, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x3E, 7, 0),
-    ]
-  ),
-  Instruction("ROR", "Rotate One Bit Right (Memory or Accumulator)", "C -> [76543210] -> C", "NvxbdiZC",
-    [
-      Variant( addrmode_find_by_name("ACC"), 0x6A, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0x66, 5, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x76, 6, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x6E, 6, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x7E, 7, 0),
-    ]
-  ),
-  Instruction("RTI", "Return from Interrupt", "pull PSR; pull PCL; pull PCH", "NVxbDIZC",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x40, 6, 0),
-    ]
-  ),
-  Instruction("RTS", "Return from Subroutine", "pull PCL; pull PCH; PC <- PC+1", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x60, 6, 0),
-    ]
-  ),
-  Instruction("SBC", "Subtract Memory from Accumulator with Borrow", "A <- A - M - C", "NVxbdiZC",
-    [
-      Variant( addrmode_find_by_name("IMM"), 0xE9, 2, 0),
-      Variant( addrmode_find_by_name("ZPG"), 0xE5, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0xF5, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0xED, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0xFD, 4, 1),
-      Variant( addrmode_find_by_name("ABY"), 0xF9, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0xE1, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0xF1, 5, 1),
-    ]
-  ),
-  Instruction("SEC", "Set Carry Flag", "C <- 1", "nvxbdizC",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x38, 2, 0),
-    ]
-  ),
-  Instruction("SED", "Set Decimal Mode", "D <- 1", "nvxbDizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xF8, 2, 0),
-    ]
-  ),
-  Instruction("SEI", "Set Interrupt Disable Status", "I <- 1 (disabled)", "nvxbdIzc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x78, 2, 0),
-    ]
-  ),
-  Instruction("STA", "Store Accumulator in Memory", "M <- A", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("ZPG"), 0x85, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x95, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x8D, 4, 0),
-      Variant( addrmode_find_by_name("ABX"), 0x9D, 5, 0),
-      Variant( addrmode_find_by_name("ABY"), 0x99, 5, 0),
-      Variant( addrmode_find_by_name("INX"), 0x81, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x91, 6, 0),
-    ]
-  ),
-  Instruction("STX", "Store Index X in Memory", "M <- X", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("ZPG"), 0x86, 3, 0),
-      Variant( addrmode_find_by_name("ZPY"), 0x96, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x8E, 4, 0),
-    ]
-  ),
-  Instruction("STY", "Sore Index Y in Memory", "M <- Y", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("ZPG"), 0x84, 3, 0),
-      Variant( addrmode_find_by_name("ZPX"), 0x94, 4, 0),
-      Variant( addrmode_find_by_name("ABS"), 0x8C, 4, 0),
-    ]
-  ),
-  Instruction("TAX", "Transfer Accumulator to Index X", "X <- A", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xAA, 2, 0),
-    ]
-  ),
-  Instruction("TAY", "Transfer Accumulator to Index Y", "Y <- A", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xA8, 2, 0),
-    ]
-  ),
-  Instruction("TSX", "Transfer Stack Pointer to Index X", "X <- SP", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0xBA, 2, 0),
-    ]
-  ),
-  Instruction("TXA", "Transfer Index X to Accumulator", "A <- X", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x8A, 2, 0),
-    ]
-  ),
-  Instruction("TXS", "Transfer Index X to Stack Register", "SP <- X", "nvxbdizc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x9A, 2, 0),
-    ]
-  ),
-  Instruction("TYA", "Transfer Index Y to Accumulator", "A <- Y", "NvxbdiZc",
-    [
-      Variant( addrmode_find_by_name("IMP"), 0x98, 2, 0),
-    ]
-  ),
-  Instruction("ADC", "Add Memory to Accumulator with Carry", "C <- A + M + C", "NVxbdiZC",
+  Instruction("ADC", "add memory to accumulator with carry", "C <- A + M + C", "NVxbdiZC",
     [
       Variant( addrmode_find_by_name("IMM"), 0x69, 2, 0),
       Variant( addrmode_find_by_name("ZPG"), 0x65, 3, 0),
@@ -463,6 +100,369 @@ instructions= [
       Variant( addrmode_find_by_name("INY"), 0x71, 5, 1),
     ]
   ),  
+  Instruction("AND", "AND memory with accumulator", "A <- A AND M", "NvxbdiZc",
+    [ 
+      Variant( addrmode_find_by_name("IMM"), 0x29, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x25, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x35, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x2D, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x3D, 4, 1),
+      Variant( addrmode_find_by_name("ABY"), 0x39, 4, 1),
+      Variant( addrmode_find_by_name("INX"), 0x21, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0x31, 5, 1),
+    ]
+  ),
+  Instruction("ASL", "arithmetic shift one bit left (memory or accumulator)", "C <- [76543210] <- 0", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("ACC"), 0x0A, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x06, 5, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x16, 6, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x0E, 6, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x1E, 7, 0),
+    ]
+  ),
+  Instruction("BCC", "branch on carry clear", "branch on C = 0", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0x90, 2, 2),
+    ]
+  ),
+  Instruction("BCS", "branch on carry set", "branch on C = 1", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0xB0, 2, 2),
+    ]
+  ),
+  Instruction("BEQ", "branch on result zero", "branch on Z = 1", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0xF0, 2, 2),
+    ]
+  ),
+  Instruction("BIT", "test bits in memory with accumulator", "N<-M.7; V<-M.6; Z<-A AND M", "NVxbdiZc",
+    [
+      Variant( addrmode_find_by_name("ZPG"), 0x24, 3, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x2C, 4, 0),
+    ]
+  ),
+  Instruction("BMI", "branch on result minus", "branch on N = 1", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0x30, 2, 2),
+    ]
+  ),
+  Instruction("BNE", "branch on result not zero", "branch on Z = 0", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0xD0, 2, 2),
+    ]
+  ),
+  Instruction("BPL", "branch on result plus", "branch on N = 0", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0x10, 2, 2),
+    ]
+  ),
+  Instruction("BRK", "force break", "interrupt; push PC+2; push PSR", "nvxBdIzc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x00, 7, 0),
+    ]
+  ),
+  Instruction("BVC", "branch on overflow clear", "branch on V = 0", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0x50, 2, 2),
+    ]
+  ),
+  Instruction("BVS", "branch on overflow set", "branch on V = 1", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("REL"), 0x70, 2, 2),
+    ]
+  ),
+  Instruction("CLC", "clear carry flag", "C <- 0", "nvxbdizC",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x18, 2, 0),
+    ]
+  ),
+  Instruction("CLD", "clear decimal flag", "D <- 0", "nvxbDizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xD8, 2, 0),
+    ]
+  ),
+  Instruction("CLI", "clear interrupt disable flag", "I <- 0 (enabled)", "nvxbdIzc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x58, 2, 0),
+    ]
+  ),
+  Instruction("CLV", "clear overflow flag", "V <- 0", "nVxbdizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xB8, 2, 0),
+    ]
+  ),
+  Instruction("CMP", "compare memory with accumulator", "A - M", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xC9, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xC5, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0xD5, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xCD, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0xDD, 4, 1),
+      Variant( addrmode_find_by_name("ABY"), 0xD9, 4, 1),
+      Variant( addrmode_find_by_name("INX"), 0xC1, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0xD1, 5, 1),
+    ]
+  ),
+  Instruction("CPX", "compare memory and index X", "X - M", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xE0, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xE4, 3, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xEC, 4, 0),
+    ]
+  ),
+  Instruction("CPY", "compare memory and index Y", "Y - M", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xC0, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xC4, 3, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xCC, 4, 0),
+    ]
+  ),
+  Instruction("DEC", "decrement memory by one", "M <- M - 1", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("ZPG"), 0xC6, 5, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0xD6, 6, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xCE, 6, 0),
+      Variant( addrmode_find_by_name("ABX"), 0xDE, 7, 0),
+    ]
+  ),
+  Instruction("DEX", "decrement index X by one", "X <- X - 1", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xCA, 2, 0),
+    ]
+  ),
+  Instruction("DEY", "decrement index Y by one", "Y <- Y - 1", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x88, 2, 0),
+    ]
+  ),
+  Instruction("EOR", "EOR (exclusive-or) memory with accumulator", "A <- A EOR M", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0x49, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x45, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x55, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x4D, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x5D, 4, 1),
+      Variant( addrmode_find_by_name("ABY"), 0x59, 4, 1),
+      Variant( addrmode_find_by_name("INX"), 0x41, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0x51, 5, 1),
+    ]
+  ),
+  Instruction("INC", "increment memory by one", "M <- M + 1", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("ZPG"), 0xE6, 5, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0xF6, 6, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xEE, 6, 0),
+      Variant( addrmode_find_by_name("ABX"), 0xFE, 7, 0),
+    ]
+  ),
+  Instruction("INX", "increment index X by one", "X <- X + 1", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xE8, 2, 0),
+    ]
+  ),
+  Instruction("INY", "increment index Y by one", "Y <- Y + 1", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xC8, 2, 0),
+    ]
+  ),
+  Instruction("JMP", "jump to new location", "PCL <- (PC+1); PCH <- (PC+2)", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("ABS"), 0x4C, 3, 0),
+      Variant( addrmode_find_by_name("IND"), 0x6C, 5, 0),
+    ]
+  ),
+  Instruction("JSR", "jump to new location saving return address", "push (PC+2); PCL <- (PC+1); PCH <- (PC+2)", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("ABS"), 0x20, 6, 0),
+    ]
+  ),
+  Instruction("LDA", "load accumulator with memory", "A <- M", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xA9, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xA5, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0xB5, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xAD, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0xBD, 4, 1),
+      Variant( addrmode_find_by_name("ABY"), 0xB9, 4, 1),
+      Variant( addrmode_find_by_name("INX"), 0xA1, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0xB1, 5, 1),
+    ]
+  ),
+  Instruction("LDX", "load index X with memory", "X <- M", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xA2, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xA6, 3, 0),
+      Variant( addrmode_find_by_name("ZPY"), 0xB6, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xAE, 4, 0),
+      Variant( addrmode_find_by_name("ABY"), 0xBE, 4, 1),
+    ]
+  ),
+  Instruction("LDY", "load index Y with memory", "Y <- M", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xA0, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xA4, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0xB4, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xAC, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0xBC, 4, 1),
+    ]
+  ),
+  Instruction("LSR", "logic shift one bit right (memory or accumulator)", "0 -> [76543210] -> C", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("ACC"), 0x4A, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x46, 5, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x56, 6, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x4E, 6, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x5E, 7, 0),
+    ]
+  ),
+  Instruction("NOP", "no operation", "skip", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xEA, 2, 0),
+    ]
+  ),
+  Instruction("ORA", "OR memory with accumulator", "A <- A OR M", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0x09, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x05, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x15, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x0D, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x1D, 4, 1),
+      Variant( addrmode_find_by_name("ABY"), 0x19, 4, 1),
+      Variant( addrmode_find_by_name("INX"), 0x01, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0x11, 5, 1),
+    ]
+  ),
+  Instruction("PHA", "push accumulator on stack", "push A", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x48, 3, 0),
+    ]
+  ),
+  Instruction("PHP", "push processor status register on stack", "push PSR", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x08, 3, 0),
+    ]
+  ),
+  Instruction("PLA", "pull accumulator from stack", "pull A", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x68, 4, 0),
+    ]
+  ),
+  Instruction("PLP", "pull processor status register from stack", "pull PSR", "NVxbDIZC",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x28, 4, 0),
+    ]
+  ),
+  Instruction("ROL", "rotate one bit left (memory or accumulator)", "C <- [76543210] <- C", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("ACC"), 0x2A, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x26, 5, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x36, 6, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x2E, 6, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x3E, 7, 0),
+    ]
+  ),
+  Instruction("ROR", "rotate one bit right (memory or accumulator)", "C -> [76543210] -> C", "NvxbdiZC",
+    [
+      Variant( addrmode_find_by_name("ACC"), 0x6A, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0x66, 5, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x76, 6, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x6E, 6, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x7E, 7, 0),
+    ]
+  ),
+  Instruction("RTI", "return from interrupt", "pull PSR; pull PCL; pull PCH", "NVxbDIZC",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x40, 6, 0),
+    ]
+  ),
+  Instruction("RTS", "return from subroutine", "pull PCL; pull PCH; PC <- PC+1", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x60, 6, 0),
+    ]
+  ),
+  Instruction("SBC", "subtract memory from accumulator with borrow", "A <- A - M - C", "NVxbdiZC",
+    [
+      Variant( addrmode_find_by_name("IMM"), 0xE9, 2, 0),
+      Variant( addrmode_find_by_name("ZPG"), 0xE5, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0xF5, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0xED, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0xFD, 4, 1),
+      Variant( addrmode_find_by_name("ABY"), 0xF9, 4, 1),
+      Variant( addrmode_find_by_name("INX"), 0xE1, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0xF1, 5, 1),
+    ]
+  ),
+  Instruction("SEC", "set carry flag", "C <- 1", "nvxbdizC",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x38, 2, 0),
+    ]
+  ),
+  Instruction("SED", "set decimal flag", "D <- 1", "nvxbDizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xF8, 2, 0),
+    ]
+  ),
+  Instruction("SEI", "set interrupt disable flag", "I <- 1 (disabled)", "nvxbdIzc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x78, 2, 0),
+    ]
+  ),
+  Instruction("STA", "store accumulator in memory", "M <- A", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("ZPG"), 0x85, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x95, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x8D, 4, 0),
+      Variant( addrmode_find_by_name("ABX"), 0x9D, 5, 0),
+      Variant( addrmode_find_by_name("ABY"), 0x99, 5, 0),
+      Variant( addrmode_find_by_name("INX"), 0x81, 6, 0),
+      Variant( addrmode_find_by_name("INY"), 0x91, 6, 0),
+    ]
+  ),
+  Instruction("STX", "store index X in memory", "M <- X", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("ZPG"), 0x86, 3, 0),
+      Variant( addrmode_find_by_name("ZPY"), 0x96, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x8E, 4, 0),
+    ]
+  ),
+  Instruction("STY", "store index Y in memory", "M <- Y", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("ZPG"), 0x84, 3, 0),
+      Variant( addrmode_find_by_name("ZPX"), 0x94, 4, 0),
+      Variant( addrmode_find_by_name("ABS"), 0x8C, 4, 0),
+    ]
+  ),
+  Instruction("TAX", "transfer accumulator to index X", "X <- A", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xAA, 2, 0),
+    ]
+  ),
+  Instruction("TAY", "transfer accumulator to index Y", "Y <- A", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xA8, 2, 0),
+    ]
+  ),
+  Instruction("TSX", "transfer stack pointer to index X", "X <- SP", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0xBA, 2, 0),
+    ]
+  ),
+  Instruction("TXA", "transfer index X to accumulator", "A <- X", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x8A, 2, 0),
+    ]
+  ),
+  Instruction("TXS", "transfer index X to stack register", "SP <- X", "nvxbdizc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x9A, 2, 0),
+    ]
+  ),
+  Instruction("TYA", "transfer index Y to accumulator", "A <- Y", "NvxbdiZc",
+    [
+      Variant( addrmode_find_by_name("IMP"), 0x98, 2, 0),
+    ]
+  ),
 ]
 
 # Make sure instructions are sorted
@@ -541,6 +541,7 @@ def print_cpp_header() :
   print()
   print()
   print("#include <avr/pgmspace.h>")
+  print("#include <ctype.h>")
   print("#include \"isa.h\"")
   print()
   print()
@@ -583,15 +584,41 @@ def print_cpp_addrmodes() :
   print("const char * isa_addrmode_syntax( int aix ) { return (const char *)pgm_read_word(&isa_addrmodes[aix].syntax); }")
   print()
   print("int isa_addrmode_find(const char * aname) {")
+  print("  char name[4]; for(int i=0; i<3; i++ ) name[i]=toupper(aname[i]); name[3]=0; // aname to upper")
   print("  int lo= ISA_AIX_FIRST;")
   print("  int hi= ISA_AIX_LAST-1;")
   print("  while( lo<=hi ) {")
   print("    int mid= (lo+hi)/2;")
-  print("    int cmp= strcmp_P(aname,isa_addrmode_aname(mid));")
+  print("    int cmp= strcmp_P(name,isa_addrmode_aname(mid));")
   print("    if( cmp==0 ) return mid;")
   print("    if( cmp>0 ) lo=mid+1; else hi=mid-1;")
   print("  }")
   print("  return 0; // (0 is not a used addrmode index)")
+  print("}")
+  print()
+  print()
+  print("// \"OPC (LL,X)\", \"A3\" -> \" (A3,X)\"")
+  print("// \"OPC (LL,X)\", 0 -> \" (LL,X)\"")
+  print("// buf size is 5+len(op)+1")
+  print("#define sFMT (uint8_t)pgm_read_byte(fmt)")
+  print("void isa_syntax(char * buf, const char * fmt, char * op) {")
+  print("  char c;")
+  print("  // Part 1: OPC (do _not_ copy from fmt to buf)")
+  print("  while( c=sFMT, c=='O'||c=='P'||c=='C' ) fmt++; ")
+  print("  // Part 2: pre (do copy from fmt to buf)   ")
+  print("  while( c=sFMT, c!='H'&&c!='L'&&c!='N'&&c!=0 ) *buf++=(fmt++,c);")
+  print("  // Part 3: op (replace HLN chars by op, unless op==0)")
+  print("  int HLN= c!=0;  ")
+  print("  if( op ) {")
+  print("    while( c=sFMT, c=='H'||c=='L'||c=='N' ) fmt++; // skip HLN")
+  print("    if( HLN ) while( *op!=0 ) *buf++= *op++; // copy op (if there was HLN)")
+  print("  } else {")
+  print("    while( c=sFMT, c=='H'||c=='L'||c=='N' ) *buf++=(fmt++,c); // copy fmt")
+  print("  }")
+  print("  // Part 4: post (do copy from fmt to buf)")
+  print("  while( c=sFMT, c!=0 ) *buf++=(fmt++,c);")
+  print("  // Part 5: terminate")
+  print("  *buf= 0;")
   print("}")
   print()
   print()
@@ -635,11 +662,12 @@ def print_cpp_instructions() :
   print("uint8_t       isa_instruction_opcodes( int iix, int aix ) { return (uint8_t     )pgm_read_byte(&isa_instructions[iix].opcodes[aix] ); }")
   print()
   print("int isa_instruction_find(const char * iname) {")
+  print("  char name[4]; for(int i=0; i<3; i++ ) name[i]=toupper(iname[i]); name[3]=0; // iname to upper")
   print("  int lo= ISA_IIX_FIRST;")
   print("  int hi= ISA_IIX_LAST-1;")
   print("  while( lo<=hi ) {")
   print("    int mid= (lo+hi)/2;")
-  print("    int cmp= strcmp_P(iname,isa_instruction_iname(mid));")
+  print("    int cmp= strcmp_P(name,isa_instruction_iname(mid));")
   print("    if( cmp==0 ) return mid;")
   print("    if( cmp>0 ) lo=mid+1; else hi=mid-1;")
   print("  }")
@@ -736,11 +764,12 @@ def print_h_addrmodes() :
   print( f"#define ISA_AIX_FIRST  1 // for iteration: first")
   print( f"#define ISA_AIX_LAST  {len(addrmodes)} // for iteration: (one after) last")
   print()
-  print("const char * isa_addrmode_aname ( int aix );          // A three letter name for the addressing mode (e.g. ABS)")
-  print("uint8_t      isa_addrmode_bytes ( int aix );          // Number of bytes this addressing mode takes (opcode plus 0, 1, or 2 bytes for operand)")
-  print("const char * isa_addrmode_desc  ( int aix );          // Human readable description of the addressing mode")
-  print("const char * isa_addrmode_syntax( int aix );          // Notation in assembly language")
-  print("int          isa_addrmode_find  (const char * aname); // Returns aix for `aname` or 0 if not found")
+  print("const char * isa_addrmode_aname ( int aix );             // A three letter name for the addressing mode (e.g. ABS)")
+  print("uint8_t      isa_addrmode_bytes ( int aix );             // Number of bytes this addressing mode takes (opcode plus 0, 1, or 2 bytes for operand)")
+  print("const char * isa_addrmode_desc  ( int aix );             // Human readable description of the addressing mode")
+  print("const char * isa_addrmode_syntax( int aix );             // Notation in assembly language")
+  print("int          isa_addrmode_find  (const char * aname);    // Returns aix for `aname` or 0 if not found")
+  print("void         isa_syntax(char*buf,const char*fmt,char*op);// fmt is a isa_addrmode_syntax(), and op an actual operand; prints to buf")
   print()
   print()
 
