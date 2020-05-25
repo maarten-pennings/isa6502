@@ -36,8 +36,8 @@ addrmodes= [ # Global variable of all addressing modes
   AddrMode("ZPX", 2, "Zero page, indexed with x", "OPC *LL,X"),
   AddrMode("ZPY", 2, "Zero page, indexed with y", "OPC *LL,Y"),
 
-  AddrMode("INX", 2, "Zero page, indexed with x, indirect", "OPC (LL,X)"),
-  AddrMode("INY", 2, "Zero page, indirect, indexed with y", "OPC (LL),Y"),
+  AddrMode("ZIX", 2, "Zero page, indexed with x, indirect", "OPC (LL,X)"),
+  AddrMode("ZIY", 2, "Zero page, indirect, indexed with y", "OPC (LL),Y"),
 
   AddrMode("REL", 2, "Relative to PC", "OPC +NN"),
   AddrMode("IND", 3, "Indirect", "OPC (HHLL)"),
@@ -96,8 +96,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x6D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x7D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x79, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x61, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x71, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0x61, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0x71, 5, 1),
     ]
   ),  
   Instruction("AND", "AND memory with accumulator", "A <- A AND M", "NvxbdiZc",
@@ -108,8 +108,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x2D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x3D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x39, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x21, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x31, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0x21, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0x31, 5, 1),
     ]
   ),
   Instruction("ASL", "arithmetic shift one bit left (memory or accumulator)", "C <- [76543210] <- 0", "NvxbdiZC",
@@ -200,8 +200,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0xCD, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0xDD, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0xD9, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0xC1, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0xD1, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0xC1, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0xD1, 5, 1),
     ]
   ),
   Instruction("CPX", "compare memory and index X", "X - M", "NvxbdiZC",
@@ -244,8 +244,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x4D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x5D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x59, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x41, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x51, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0x41, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0x51, 5, 1),
     ]
   ),
   Instruction("INC", "increment memory by one", "M <- M + 1", "NvxbdiZc",
@@ -285,8 +285,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0xAD, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0xBD, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0xB9, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0xA1, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0xB1, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0xA1, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0xB1, 5, 1),
     ]
   ),
   Instruction("LDX", "load index X with memory", "X <- M", "NvxbdiZc",
@@ -329,8 +329,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x0D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x1D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x19, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0x01, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x11, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0x01, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0x11, 5, 1),
     ]
   ),
   Instruction("PHA", "push accumulator on stack", "push A", "nvxbdizc",
@@ -389,8 +389,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0xED, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0xFD, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0xF9, 4, 1),
-      Variant( addrmode_find_by_name("INX"), 0xE1, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0xF1, 5, 1),
+      Variant( addrmode_find_by_name("ZIX"), 0xE1, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0xF1, 5, 1),
     ]
   ),
   Instruction("SEC", "set carry flag", "C <- 1", "nvxbdizC",
@@ -415,8 +415,8 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x8D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x9D, 5, 0),
       Variant( addrmode_find_by_name("ABY"), 0x99, 5, 0),
-      Variant( addrmode_find_by_name("INX"), 0x81, 6, 0),
-      Variant( addrmode_find_by_name("INY"), 0x91, 6, 0),
+      Variant( addrmode_find_by_name("ZIX"), 0x81, 6, 0),
+      Variant( addrmode_find_by_name("ZIY"), 0x91, 6, 0),
     ]
   ),
   Instruction("STX", "store index X in memory", "M <- X", "nvxbdizc",
@@ -471,6 +471,10 @@ assert(instructions[0].iname=="0Ei")
 # Post-processing: set the iix field of all instructions 
 for iix,ins in enumerate(instructions) :
   ins.iix= iix
+# check that there are no duplicate names in instructions and addressingmodes
+for ins in instructions :
+  for amode in addrmodes :
+    if ins.iname==amode.aname : print("ERROR: duplicate name ", ins.iname)
 
 def variant_find_by_name(instruction,aname) :
   for var in instruction.vars :
