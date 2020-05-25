@@ -46,7 +46,7 @@ static void cmdman_printindex() {
   // Instructions
   n= 0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
-    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("man: inst: "));
+    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("inst: "));
     Serial.print(f(isa_instruction_iname(iix))); Serial.print(' ');
     if( (n+1)%CMDMAN_NAMESPERLINE==0 ) Serial.println();
     n++;
@@ -55,7 +55,7 @@ static void cmdman_printindex() {
   // Addrmodes
   n= 0;
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
-    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("man: addr: "));
+    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("addr: "));
     Serial.print(f(isa_addrmode_aname(aix))); Serial.print(' ');
     if( (n+1)%CMDMAN_NAMESPERLINE==0 ) Serial.println();
     n++;
@@ -65,30 +65,30 @@ static void cmdman_printindex() {
 
 
 static void cmdman_printregs() {
-  Serial.println( F("man: regs: A   - accumulator") ); 
-  Serial.println( F("man: regs: X   - index register") ); 
-  Serial.println( F("man: regs: Y   - index register") ); 
-  Serial.println( F("man: regs: S   - stack pointer (low byte, high byte is 01)") ); 
-  Serial.println( F("man: regs: PCL - program counter low byte") ); 
-  Serial.println( F("man: regs: PCH - program counter high byte") ); 
-  Serial.println( F("man: regs: PSR - program status register") ); 
-  Serial.println( F("man: regs:       N/7: 1=negative") ); 
-  Serial.println( F("man: regs:       V/6: 1=overflow") ); 
-  Serial.println( F("man: regs:       -/5:") ); 
-  Serial.println( F("man: regs:       B/4: 1=BRK executed") ); 
-  Serial.println( F("man: regs:       D/3: 1=decimal mode active") ); 
-  Serial.println( F("man: regs:       I/2: 1=IRQ disabled") ); 
-  Serial.println( F("man: regs:       Z/1: 1=zero") ); 
-  Serial.println( F("man: regs:       C/0: 1=carry") ); 
+  Serial.println( F("A   - accumulator") ); 
+  Serial.println( F("X   - index register") ); 
+  Serial.println( F("Y   - index register") ); 
+  Serial.println( F("S   - stack pointer (low byte, high byte is 01)") ); 
+  Serial.println( F("PCL - program counter low byte") ); 
+  Serial.println( F("PCH - program counter high byte") ); 
+  Serial.println( F("PSR - program status register") ); 
+  Serial.println( F("      N/7: 1=negative") ); 
+  Serial.println( F("      V/6: 1=overflow") ); 
+  Serial.println( F("      -/5:") ); 
+  Serial.println( F("      B/4: 1=BRK executed") ); 
+  Serial.println( F("      D/3: 1=decimal mode active") ); 
+  Serial.println( F("      I/2: 1=IRQ disabled") ); 
+  Serial.println( F("      Z/1: 1=zero") ); 
+  Serial.println( F("      C/0: 1=carry") ); 
 }
 
 
 static void cmdman_printinstruction(int iix) {
-  Serial.print( F("man: name: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.println(F(" (instruction)"));  
-  Serial.print( F("man: desc: ") ); Serial.println( f(isa_instruction_desc(iix)) ); 
-  Serial.print( F("man: help: ") ); Serial.println( f(isa_instruction_help(iix)) );  
-  Serial.print( F("man: flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
-  Serial.print( F("man: addr: ") ); 
+  Serial.print( F("name: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.println(F(" (instruction)"));  
+  Serial.print( F("desc: ") ); Serial.println( f(isa_instruction_desc(iix)) ); 
+  Serial.print( F("help: ") ); Serial.println( f(isa_instruction_help(iix)) );  
+  Serial.print( F("flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
+  Serial.print( F("addr: ") ); 
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     uint8_t opcode= isa_instruction_opcodes(iix,aix);
     if( opcode!=ISA_OPCODE_INVALID ) { Serial.print(f(isa_addrmode_aname(aix))); Serial.print(' ');}
@@ -98,15 +98,15 @@ static void cmdman_printinstruction(int iix) {
 
 
 static void cmdman_printaddrmode(int aix) {
-  Serial.print( F("man: name: ") ); Serial.print( f(isa_addrmode_aname(aix)) ); Serial.println(F(" (addressing mode)"));  
-  Serial.print( F("man: desc: ") ); Serial.println( f(isa_addrmode_desc(aix)) );  
-  Serial.print( F("man: sntx: ") ); Serial.println( f(isa_addrmode_syntax(aix)) );  
-  Serial.print( F("man: size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));  
+  Serial.print( F("name: ") ); Serial.print( f(isa_addrmode_aname(aix)) ); Serial.println(F(" (addressing mode)"));  
+  Serial.print( F("desc: ") ); Serial.println( f(isa_addrmode_desc(aix)) );  
+  Serial.print( F("sntx: ") ); Serial.println( f(isa_addrmode_syntax(aix)) );  
+  Serial.print( F("size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));  
   int n=0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     uint8_t opcode= isa_instruction_opcodes(iix,aix);
     if( opcode!=ISA_OPCODE_INVALID ) { 
-      if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("man: inst: "));
+      if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("inst: "));
       Serial.print(f(isa_instruction_iname(iix))); Serial.print(' ');
       if( (n+1)%CMDMAN_NAMESPERLINE==0 ) Serial.println();
       n++;
@@ -119,14 +119,14 @@ static void cmdman_printaddrmode(int aix) {
 static void cmdman_printopcode(uint8_t opcode) {
   uint8_t iix= isa_opcode_iix(opcode);
   uint8_t aix= isa_opcode_aix(opcode);
-  Serial.print( F("man: name: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.print('.'); Serial.print(f(isa_addrmode_aname(aix)) );
+  Serial.print( F("name: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.print('.'); Serial.print(f(isa_addrmode_aname(aix)) );
   Serial.print( F(" (opcode ") ); if( opcode<16 ) Serial.print('0'); Serial.print(opcode,HEX); Serial.println(')');
-  Serial.print( F("man: sntx: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.println( f(isa_addrmode_syntax(aix)+3) );
-  Serial.print( F("man: desc: ") ); Serial.print( f(isa_instruction_desc(iix)) ); Serial.print(F(" - ")); Serial.println( f(isa_addrmode_desc(aix)) );
-  Serial.print( F("man: help: ") ); Serial.println( f(isa_instruction_help(iix)) );  
-  Serial.print( F("man: flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
-  Serial.print( F("man: size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));
-  Serial.print( F("man: time: ") ); Serial.print(isa_opcode_cycles(opcode)); Serial.print(F(" ticks")); 
+  Serial.print( F("sntx: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.println( f(isa_addrmode_syntax(aix)+3) );
+  Serial.print( F("desc: ") ); Serial.print( f(isa_instruction_desc(iix)) ); Serial.print(F(" - ")); Serial.println( f(isa_addrmode_desc(aix)) );
+  Serial.print( F("help: ") ); Serial.println( f(isa_instruction_help(iix)) );  
+  Serial.print( F("flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
+  Serial.print( F("size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));
+  Serial.print( F("time: ") ); Serial.print(isa_opcode_cycles(opcode)); Serial.print(F(" ticks")); 
   if( isa_opcode_xcycles(opcode)==1 ) { 
     Serial.println(F(" (add 1 if page boundary is crossed)")); 
   } else if( isa_opcode_xcycles(opcode)==2 ) { 
@@ -144,7 +144,6 @@ static void cmdman_printfind(char * word) {
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     int p= cmdman_findmid( isa_instruction_desc(iix) , word );
     if( p>=0 ) {
-      Serial.print( F("man: find: ") ); 
       Serial.print( f(isa_instruction_iname(iix))); 
       Serial.print(F(" - "));
       Serial.print( f(isa_instruction_desc(iix)) ); 
@@ -152,23 +151,10 @@ static void cmdman_printfind(char * word) {
       n++;
     }
   }
-  /*
-  for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
-    int p= cmdman_findmid( isa_addrmode_desc(aix) , word );
-    if( p>=0 ) {
-      Serial.print( F("man: find: ") ); 
-      Serial.print( f(isa_addrmode_aname(aix))); 
-      Serial.print(F(" - "));
-      Serial.print( f(isa_addrmode_desc(aix)) ); 
-      Serial.println();
-      n++;
-    }
-  }
-  */
   if( n==0 ) {
-    Serial.println( F("man: find: nothing found") ); 
+    Serial.println( F("nothing found") ); 
   } else {
-    Serial.print( F("man: find: ") ); Serial.print(n); Serial.println( F(" results") ); 
+    Serial.print( F("found ") ); Serial.print(n); Serial.println( F(" results") ); 
   }
 }
 
