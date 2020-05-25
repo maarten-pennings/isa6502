@@ -54,6 +54,43 @@ This is a [complex example](examples/isa6502cmd),
 using my [command interpreter](https://github.com/maarten-pennings/cmd).
 It adds a _man page_ [command](examples/isa6502cmd/cmdman.cpp), which allows the user to query the 6502 tables.
 
+### isa6502dasm
+
+This example also uses my [command interpreter](https://github.com/maarten-pennings/cmd).
+It not only has a command to write and read to memory, but also to **disassemble**.
+Here is an example run.
+
+```txt
+Welcome to isa6502dasm lib V4
+
+Type 'help' for help
+>> write fffc 00 00 66 66 78 D8 A2 FF 9A A9 00 8D 00 80 A9 FF 8D 00 80 D0 F4 
+>> dasm
+fffc 00       BRK
+fffd 00       BRK
+fffe 66 66    ROR *66
+0000 78       SEI
+0001 d8       CLD
+0002 a2 ff    LDX #ff
+0004 9a       TXS
+0005 a9 00    LDA #00
+>> dasm
+0007 8d 00 80 STA 8000
+000a a9 ff    LDA #ff
+000c 8d 00 80 STA 8000
+000f d0 f4    BNE +f4 (0005)
+0011 00       BRK
+0012 00       BRK
+0013 00       BRK
+0014 00       BRK
+>> read fff0
+fff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 66 66
+0000: 78 d8 a2 ff 9a a9 00 8d 00 80 a9 ff 8d 00 80 d0
+0010: f4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+>> 
+```
+
 ## PROGMEM details
 
 Recall that a pointer `char * p` with a value 0x1000 could address location 0x1000 in DATAMEM (RAM) or 0x1000 in PROGMEM (flash). 
