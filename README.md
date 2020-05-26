@@ -91,6 +91,59 @@ fff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 66 66
 >> 
 ```
 
+It also has a command to **assemble**.
+Here is an example run, for the same program as above.
+
+```txt
+Welcome to isa6502dasm lib V5
+
+Type 'help' for help
+>> w fffc 00 00
+>> write fffc 00 00
+>> asm 0000
+w0000> sei
+w0001> cld
+w0002> ldx ff
+INFO: asm: suggest ZPG instead of ABS (try - for undo)
+w0005> -
+w0002> ldx #ff
+w0004> txs
+w0005> lda #00
+w0007> sta 8000
+w000a> lda #ff
+w000c> sta 8000
+w000f> bne 0005
+w0011>
+>> d
+0000 78       SEI
+0001 d8       CLD
+0002 a2 ff    LDX #ff
+0004 9a       TXS
+0005 a9 00    LDA #00
+0007 8d 00 80 STA 8000
+000a a9 ff    LDA #ff
+000c 8d 00 80 STA 8000
+>> d
+000f d0 f4    BNE +f4 (0005)
+0011 00       BRK
+0012 00       BRK
+0013 00       BRK
+0014 00       BRK
+0015 00       BRK
+0016 00       BRK
+0017 00       BRK
+>>
+```
+
+Note
+
+ - At address 0002 I made a mistake, I typed `ldx ff` where I intende `ldx #ff`.
+ - The assembler gave a warning, because the operand size (1 byte) did not match the instruction (2 bytes).
+ - I used the "undo" feature (go one instruction back), and corrected.
+ - At address 000f I used absolute addressing syntax for `bne`, but that instruction only has relative addressing. The assembler silently accepts.
+ - I quite the streaming mode ar address 0011 by entering a blank line.
+ - Then I gave twice the disassemble command (which knows the last written or shown address). This confirms the assembled code is correct
+ 
 ## PROGMEM details
 
 Recall that a pointer `char * p` with a value 0x1000 could address location 0x1000 in DATAMEM (RAM) or 0x1000 in PROGMEM (flash). 
