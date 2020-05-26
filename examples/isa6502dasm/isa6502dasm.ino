@@ -8,6 +8,7 @@ extern void cmdread_register(void);
 extern void cmdwrite_register(void); 
 extern void cmdmem_register(void); 
 extern void cmddasm_register(void); 
+extern void cmdasm_register(void); 
 
 
 void setup() {
@@ -18,6 +19,7 @@ void setup() {
   Serial.println( F("Type 'help' for help") );
   cmd_begin();
   // Register in alphabetical order
+  cmdasm_register();  
   cmddasm_register();  
   cmd_register_echo();
   cmd_register_help();

@@ -71,16 +71,20 @@ uint16_t cmdwrite_addr;
 
 
 void cmdwrite_stream( int argc, char * argv[] ) {
+  if( argc==0 ) { // no arguments toggles streaming mode
+    if( cmd_get_streamfunc()==0 ) cmd_set_streamfunc(cmdwrite_stream); else cmd_set_streamfunc(0);
+  }
   for( int i=0; i<argc; i++ ) {
-    if( argv[i][0]=='*' && argv[i][1]=='\0' ) { // toggle streaming mode
-      if( cmd_get_streamfunc()==0 ) cmd_set_streamfunc(cmdwrite_stream); else cmd_set_streamfunc(0);
-    } else {
-      uint16_t data;
-      if( !cmd_parse(argv[i],&data) ) { Serial.println(F("ERROR: write: expected hex <data>")); return; }
-      if( data>0xFF ) { Serial.println(F("ERROR: write: <data> must be 00..FF")); return; }
-      mem[ cmdwrite_addr%MEM_SIZE ] = data;
-      cmdwrite_addr++;
+    uint16_t data;
+    if( !cmd_parse(argv[i],&data) || data>0xFF ) { 
+      Serial.print(F("ERROR: write: <data> must be 00..FF, not '")); 
+      Serial.print(argv[i]); Serial.print(F(", "));
+      if( i<argc-1 ) Serial.print(F("rest ")); 
+      Serial.println(F("ignored"));
+      break; // Not return, we need to update streaming prompt
     }
+    mem[ cmdwrite_addr%MEM_SIZE ] = data;
+    cmdwrite_addr++;
   }
   // Set the streaming prompt (will only be shown in streaming mode)
   char buf[8]; snprintf_P(buf,sizeof buf, PSTR("w%04x> "),cmdwrite_addr); cmd_set_streamprompt(buf);
@@ -89,12 +93,11 @@ void cmdwrite_stream( int argc, char * argv[] ) {
 
 // The statistics command handler
 static void cmdwrite_main(int argc, char * argv[]) {
-  // Note cmd_isprefix needs a PROGMEM string. PSTR stores the string in PROGMEM.
-  if( argc<3 ) {  Serial.println(F("ERROR: write: insufficient arguments (<addr> <data>)")); return; }
+  if( argc<2 ) {  Serial.println(F("ERROR: write: insufficient arguments (<addr>)")); return; }
   if( !cmd_parse(argv[1],&cmdwrite_addr) ) {  Serial.println(F("ERROR: write: expected hex <addr>")); return; }
   extern uint16_t cmddasm_addr;
-  cmddasm_addr= cmdwrite_addr; // update dasm pointer
-  cmdread_addr= cmdwrite_addr; // update read pointer
+  cmddasm_addr= cmdwrite_addr; // set dasm pointer (so that a 'dasm' command shows what has just been written)
+  cmdread_addr= cmdwrite_addr; // set read pointer (so that a 'read' command shows what has just been written)
   cmdwrite_stream(argc-2,argv+2); // skip 'write addr'
 }
 
@@ -104,7 +107,7 @@ const char cmdwrite_longhelp[] PROGMEM =
   "SYNTAX: write <addr> <data>...\n"
   "- writes <data> byte to memory location <addr>\n"
   "- multiple <data> bytes allowed (auto increment of <addr>)\n"
-  "- <data> may be *, this toggles streaming mode\n"
+  "- if <data> is absent, starts streaming mode (empty line ends it)\n"
   "NOTE:\n"
   "- <data> is 00..FF\n"
   "- <addr> is 0000..FFFF, but physical memory is limited and mirrored\n"
