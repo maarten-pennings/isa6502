@@ -98,7 +98,6 @@ Here is an example run, for the same program as above.
 Welcome to isa6502dasm lib V5
 
 Type 'help' for help
->> w fffc 00 00
 >> write fffc 00 00
 >> asm 0000
 w0000> sei
