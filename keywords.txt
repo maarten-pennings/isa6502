@@ -24,6 +24,8 @@ isa_addrmode_bytes	KEYWORD2
 isa_addrmode_desc	KEYWORD2
 isa_addrmode_syntax	KEYWORD2
 isa_addrmode_find KEYWORD2
+isa_addrmode_unparse KEYWORD2
+isa_addrmode_parse KEYWORD2
 
 isa_instruction_iname	KEYWORD2
 isa_instruction_desc	KEYWORD2
@@ -37,12 +39,12 @@ isa_opcode_aix	KEYWORD2
 isa_opcode_cycles	KEYWORD2
 isa_opcode_xcycles	KEYWORD2
 
+cmdman_register	KEYWORD2
+
 
 ######################################
 # Constants (LITERAL1)
 #######################################
-ISA_AIX_0Ea	LITERAL1
-ISA_IIX_0Ei	LITERAL1
 ISA_OPCODE_INVALID	LITERAL1
 
 ISA_AIX_FIRST	LITERAL1
