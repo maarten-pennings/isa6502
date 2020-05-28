@@ -38,7 +38,7 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
     cmdwrite_addr++;
   }
   // Set the streaming prompt (will only be shown in streaming mode)
-  char buf[8]; snprintf_P(buf,sizeof buf, PSTR("w%04x> "),cmdwrite_addr); cmd_set_streamprompt(buf);
+  char buf[8]; snprintf_P(buf,sizeof buf, PSTR("W:%04x> "),cmdwrite_addr); cmd_set_streamprompt(buf);
 }
 
 

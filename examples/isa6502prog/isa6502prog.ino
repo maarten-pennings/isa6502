@@ -1,4 +1,4 @@
-// isa6502dasm.ino - demo of the 6502 data tables: disassembler
+// isa6502prog.ino - demo of all commands (man, read, write, dasm, asm)
 
 #include "isa.h"
 #include "cmd.h"
@@ -19,7 +19,7 @@ void    mem_write(uint16_t addr, uint8_t data) { mem[addr%MEM_SIZE]=data; }
 void setup() {
   Serial.begin(115200);
   Serial.println();
-  Serial.print( F("Welcome to isa6502dasm lib V") ); Serial.println(ISA_VERSION);
+  Serial.print( F("Welcome to isa6502prog, using  is6502 lib V") ); Serial.println(ISA_VERSION);
   Serial.println( );
   Serial.println( F("Type 'help' for help") );
   cmd_begin();

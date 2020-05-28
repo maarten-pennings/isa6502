@@ -31,9 +31,13 @@ For details on PROGMEM see [below](#progmem-details).
 
 ## Examples
 
-### isa6502dump
+There are examples of increasing size.
 
-There is a simple [example](examples/isa6502dump) that prints all tables.
+
+### isa6502basic
+
+There is a [basic example](examples/isa6502basic).
+It includes the 6502 tables from this library, and prints them.
 
 Note that it shows how to print using `f()`:
 
@@ -48,23 +52,99 @@ and how to compare a string from a table using an `_p()` variant:
   strcpy_P( aname, isa_addrmode_aname(aix) );
 ```
 
-### isa6502cmd
+### isa6502man
 
-This is a [complex example](examples/isa6502cmd), 
-using my [command interpreter](https://github.com/maarten-pennings/cmd).
-It adds a _man page_ [command](examples/isa6502cmd/cmdman.cpp), which allows the user to query the 6502 tables.
+The next example is an interactive variant.
+It uses my [command interpreter](https://github.com/maarten-pennings/cmd)
+to offer a `man` command, so that the user can query the 6502 tables.
 
-### isa6502dasm
+This [example](examples/isa6502man), only uses the [man](src/cmdman.cpp) command 
+that comes with this library. Here is an example of a session.
 
-This example also uses my [command interpreter](https://github.com/maarten-pennings/cmd).
-It not only has a command to write and read to memory, but also to **disassemble**.
-Here is an example run.
-
-```txt
-Welcome to isa6502dasm lib V4
+```text
+Welcome to isa6502man, using  is6502 lib V5
 
 Type 'help' for help
->> write fffc 00 00 66 66 78 D8 A2 FF 9A A9 00 8D 00 80 A9 FF 8D 00 80 D0 F4 
+>> help man
+SYNTAX: man
+- shows an index of instruction types (eg LDA) and addressing modes (eg ABS)
+SYNTAX: man <inst>
+- shows the details of the instruction type <inst> (eg LDA)
+SYNTAX: man <addrmode>
+- shows the details of the addressing mode <addrmode> (eg ABS)
+SYNTAX: man <hexnum> | ( <inst> <addrmode> )
+- shows the details of the instruction variant with opcode <hexnum>
+- alternatively, the variant is identified with type and addressing mode
+SYNTAX: man find <pattern>
+- lists the instruction types, if <pattern> matches their description
+- <pattern> is a series of letters; the match is case insensitive
+- <pattern> may contain *, this matches zero or more chars
+- <pattern> may contain ?, this matches any char
+SYNTAX: man table opcode
+- prints a 16x16 table of opcodes
+SYNTAX: man table <pattern>
+- prints a table of instructions (that match pattern - default pattern is *)
+SYNTAX: man regs
+- lists details of the registers
+>>
+>> man LDX
+name: LDX (instruction)
+desc: load index X with memory
+help: X <- M
+flag: NvxbdiZc
+addr: ABS ABY IMM ZPG ZPY 
+>>
+>> man ZPG
+name: ZPG (addressing mode)
+desc: Zero page
+sntx: OPC *LL
+size: 2 bytes
+inst: ADC AND ASL BIT CMP CPX CPY DEC EOR INC LDA LDX LDY LSR ORA ROL 
+inst: ROR SBC STA STX STY 
+>>
+>> man LDX ZPG
+name: LDX.ZPG (opcode A6)
+sntx: LDX *LL
+desc: load index X with memory - Zero page
+help: X <- M
+flag: NvxbdiZc
+size: 2 bytes
+time: 3 ticks
+>>
+>> man A6
+name: LDX.ZPG (opcode A6)
+sntx: LDX *LL
+desc: load index X with memory - Zero page
+help: X <- M
+flag: NvxbdiZc
+size: 2 bytes
+time: 3 ticks
+>>
+>> man find S*X
+STX - store index X in memory
+STY - store index Y in memory
+TAX - transfer accumulator to index X
+TAY - transfer accumulator to index Y
+TSX - transfer stack pointer to index X
+TXA - transfer index X to accumulator
+TXS - transfer index X to stack register
+TYA - transfer index Y to accumulator
+found 8 results
+>> 
+```
+
+### isa6502prog
+
+The third example also uses my [command interpreter](https://github.com/maarten-pennings/cmd).
+It uses all commands includes in this library; not only `man` , but also `read` and `write`, and `dasm` and `asm`.
+
+Here a demo of a `write` that is `dasm`'ed.
+
+```txt
+Welcome to isa6502prog, using  is6502 lib V5
+
+Type 'help' for help
+>> write fffc 00 00 66 66 78 D8 A2 FF 9A A9 00 8D 00 80 A9 FF 8D 00 80 D0 F4
 >> dasm
 fffc 00       BRK
 fffd 00       BRK
@@ -74,7 +154,7 @@ fffe 66 66    ROR *66
 0002 a2 ff    LDX #ff
 0004 9a       TXS
 0005 a9 00    LDA #00
->> dasm
+>> d
 0007 8d 00 80 STA 8000
 000a a9 ff    LDA #ff
 000c 8d 00 80 STA 8000
@@ -83,65 +163,64 @@ fffe 66 66    ROR *66
 0012 00       BRK
 0013 00       BRK
 0014 00       BRK
->> read fff0
-fff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 66 66
-0000: 78 d8 a2 ff 9a a9 00 8d 00 80 a9 ff 8d 00 80 d0
-0010: f4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+>> 
 >> 
 ```
 
-It also has a command to **assemble**.
-Here is an example run, for the same program as above.
+Here a demo of an `asm`'d program that is `read`.
 
 ```txt
-Welcome to isa6502dasm lib V5
-
-Type 'help' for help
->> write fffc 00 00
->> asm 0000
-w0000> sei
-w0001> cld
-w0002> ldx ff
+>> asm
+w0200> sei
+w0201> cld
+w0202> ldx ff
 INFO: asm: suggest ZPG instead of ABS (try - for undo)
-w0005> -
-w0002> ldx #ff
-w0004> txs
-w0005> lda #00
-w0007> sta 8000
-w000a> lda #ff
-w000c> sta 8000
-w000f> bne 0005
-w0011>
->> d
-0000 78       SEI
-0001 d8       CLD
-0002 a2 ff    LDX #ff
-0004 9a       TXS
-0005 a9 00    LDA #00
-0007 8d 00 80 STA 8000
-000a a9 ff    LDA #ff
-000c 8d 00 80 STA 8000
->> d
-000f d0 f4    BNE +f4 (0005)
-0011 00       BRK
-0012 00       BRK
-0013 00       BRK
-0014 00       BRK
-0015 00       BRK
-0016 00       BRK
-0017 00       BRK
+w0205> -
+w0202> ldx #ff
+w0204> txs
+w0205> lda #00
+w0207> sta 8000
+w020a> lda #ff
+w020c> sta 8000
+w020f> bne 0205
+w0211> 
 >>
+>> d
+0200 78       SEI
+0201 d8       CLD
+0202 a2 ff    LDX #ff
+0204 9a       TXS
+0205 a9 00    LDA #00
+0207 8d 00 80 STA 8000
+020a a9 ff    LDA #ff
+020c 8d 00 80 STA 8000
+>> d
+020f d0 f4    BNE +f4 (0205)
+0211 00       BRK
+0212 00       BRK
+0213 00       BRK
+0214 00       BRK
+0215 00       BRK
+0216 00       BRK
+0217 00       BRK
+>> 
+>> r
+0200: 78 d8 a2 ff 9a a9 00 8d 00 80 a9 ff 8d 00 80 d0
+0210: f4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0220: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0230: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+>> 
 ```
 
 Note
-
- - At address 0002 I made a mistake, I typed `ldx ff` where I intende `ldx #ff`.
+ - The `asm` command was not given an address, and defaults to `0200` (page 0 and 1 are typically reserved on a 6502).
+ - At address 0202 I made a mistake, I typed `ldx ff` where I intended `ldx #ff`.
  - The assembler gave a warning, because the operand size (1 byte) did not match the instruction (2 bytes).
- - I used the "undo" feature (go one instruction back), and corrected.
- - At address 000f I used absolute addressing syntax for `bne`, but that instruction only has relative addressing. The assembler silently accepts.
- - I quite the streaming mode ar address 0011 by entering a blank line.
- - Then I gave twice the disassemble command (which knows the last written or shown address). This confirms the assembled code is correct
+ - I used the "undo" feature (`-` goes one instruction back), and corrected.
+ - At address 020f I used absolute addressing syntax for `bne`, but that instruction only has relative addressing. The assembler silently accepts.
+ - I quit the streaming mode at address 0211 by entering a blank line.
+ - Then I gave twice the disassemble command (which knows the last written or shown address). This confirms the assembled code is correct.
+ - Finally, a gave a read command (which also knows the last written address). 
  
 ## PROGMEM details
 

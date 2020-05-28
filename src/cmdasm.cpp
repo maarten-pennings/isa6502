@@ -74,7 +74,7 @@ static void cmdasm_stream( int argc, char * argv[] ) {
     if( aix==ISA_AIX_REL && PAGE(cmdasm_addr+(int8_t)op)!=PAGE(cmdasm_addr) ) Serial.println(F("INFO: asm: branch to other page (1 cycle extra) (try - for undo)")); 
   }
   // Set the streaming prompt (will only be shown in streaming mode)
-  snprintf_P(buf,sizeof buf, PSTR("w%04x> "),cmdasm_addr); cmd_set_streamprompt(buf);
+  snprintf_P(buf,sizeof buf, PSTR("A:%04x> "),cmdasm_addr); cmd_set_streamprompt(buf);
 }
 
 

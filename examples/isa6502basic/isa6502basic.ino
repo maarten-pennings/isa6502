@@ -98,7 +98,7 @@ void print_opcodes( void ) {
 void setup() {
   Serial.begin(115200);
   Serial.println();
-  Serial.print( F("Welcome to isa6502basic using lib V") ); Serial.println(ISA_VERSION);
+  Serial.print( F("Welcome to isa6502basic, using  is6502 lib V") ); Serial.println(ISA_VERSION);
   Serial.println();
 
   print_addrmodes();

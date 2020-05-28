@@ -7,7 +7,7 @@
 void setup() {
   Serial.begin(115200);
   Serial.println();
-  Serial.print( F("Welcome to isa6502man lib V") ); Serial.println(ISA_VERSION);
+  Serial.print( F("Welcome to isa6502man, using  is6502 lib V") ); Serial.println(ISA_VERSION);
   Serial.println( );
   Serial.println( F("Type 'help' for help") );
   Serial.println( F("This is a demo of the 'man' command") );
