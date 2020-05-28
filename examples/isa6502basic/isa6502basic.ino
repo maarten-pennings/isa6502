@@ -1,13 +1,11 @@
-// isa6502dump.ino - demo of dumping the 6502 data tables
+// isa6502basic.ino - demo of printing the 6502 data tables over serial
+
 
 #include "isa.h"
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println();
-  Serial.print( F("Welcome to isa6502dump using lib V") ); Serial.println(ISA_VERSION);
-  Serial.println();
-  
+
+void print_addrmodes( void ) {
+  Serial.println("index; name; bytes; description; syntax; instructions; find()");
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     Serial.print(aix); Serial.print("; ");
     Serial.print(f(isa_addrmode_aname (aix))); Serial.print("; ");
@@ -27,7 +25,11 @@ void setup() {
     Serial.println( isa_addrmode_find(aname) );
   }
   Serial.println();
+}
 
+
+void print_instructions( void ) {
+  Serial.println("index; name; description; help; flags; addrmodes; find()");
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     Serial.print(iix); Serial.print("; ");
     Serial.print(f(isa_instruction_iname (iix))); Serial.print("; ");
@@ -47,8 +49,21 @@ void setup() {
     Serial.println( isa_instruction_find(iname) );
   }
   Serial.println();
+}
 
-  Serial.print("  |");
+
+void print_opcodes_line( void ) {
+  Serial.print("+--+");
+  for( int x=0; x<16; x++ ) {
+    Serial.print("---+");
+  }
+  Serial.println();  
+}
+
+
+void print_opcodes( void ) {
+  print_opcodes_line();
+  Serial.print("|  |");
   for( int x=0; x<16; x++ ) {
     Serial.print("0");
     Serial.print(x,HEX);
@@ -56,6 +71,8 @@ void setup() {
   }
   Serial.println();
   for( int y=0; y<16; y++) {
+    if( y%4==0 ) print_opcodes_line();
+    Serial.print("|");
     Serial.print(y,HEX);
     Serial.print("0|");
     for( int x=0; x<16; x++ ) {
@@ -65,7 +82,7 @@ void setup() {
       Serial.print("|");
     }
     Serial.println();
-    Serial.print("  |");
+    Serial.print("|  |");
     for( int x=0; x<16; x++ ) {
       int opcode=y*16+x;
       int aix= isa_opcode_aix(opcode);
@@ -74,8 +91,19 @@ void setup() {
     }
     Serial.println();
   }
+  print_opcodes_line();
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println();
+  Serial.print( F("Welcome to isa6502basic using lib V") ); Serial.println(ISA_VERSION);
   Serial.println();
 
+  print_addrmodes();
+  print_instructions();  
+  print_opcodes();
 }
 
 
