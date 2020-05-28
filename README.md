@@ -31,13 +31,13 @@ For details on PROGMEM see [below](#progmem-details).
 
 ## Examples
 
-There are examples of increasing size.
+There are examples of increasing code size.
 
 
 ### isa6502basic
 
 There is a [basic example](examples/isa6502basic).
-It includes the 6502 tables from this library, and prints them.
+It includes the 6502 tables from this library, and just prints them.
 
 Note that it shows how to print using `f()`:
 
@@ -52,14 +52,17 @@ and how to compare a string from a table using an `_p()` variant:
   strcpy_P( aname, isa_addrmode_aname(aix) );
 ```
 
+For details on PROGMEM (`f()` and `_p()`) see [below](#progmem-details).
+
 ### isa6502man
 
 The next example is an interactive variant.
 It uses my [command interpreter](https://github.com/maarten-pennings/cmd)
 to offer a `man` command, so that the user can query the 6502 tables.
 
-This [example](examples/isa6502man), only uses the [man](src/cmdman.cpp) command 
-that comes with this library. Here is an example of a session.
+This library comes with multiple commands, but this [example](examples/isa6502man), only uses [man](src/cmdman.cpp).
+
+Here is an example of a session.
 
 ```text
 Welcome to isa6502man, using  is6502 lib V5
@@ -135,7 +138,7 @@ found 8 results
 
 ### isa6502prog
 
-The third example also uses my [command interpreter](https://github.com/maarten-pennings/cmd).
+The third example is also based on my [command interpreter](https://github.com/maarten-pennings/cmd).
 It uses all commands includes in this library; not only `man` , but also `read` and `write`, and `dasm` and `asm`.
 
 Here a demo of a `write` that is `dasm`'ed.
@@ -171,19 +174,19 @@ Here a demo of an `asm`'d program that is `read`.
 
 ```txt
 >> asm
-w0200> sei
-w0201> cld
-w0202> ldx ff
+A:0200> sei
+A:0201> cld
+A:0202> ldx ff
 INFO: asm: suggest ZPG instead of ABS (try - for undo)
-w0205> -
-w0202> ldx #ff
-w0204> txs
-w0205> lda #00
-w0207> sta 8000
-w020a> lda #ff
-w020c> sta 8000
-w020f> bne 0205
-w0211> 
+A:0205> -
+A:0202> ldx #ff
+A:0204> txs
+A:0205> lda #00
+A:0207> sta 8000
+A:020a> lda #ff
+A:020c> sta 8000
+A:020f> bne 0205
+A:0211> 
 >>
 >> d
 0200 78       SEI
