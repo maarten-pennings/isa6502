@@ -40,6 +40,10 @@ isa_opcode_cycles	KEYWORD2
 isa_opcode_xcycles	KEYWORD2
 
 cmdman_register	KEYWORD2
+cmdread_register	KEYWORD2
+cmdwrite_register	KEYWORD2
+cmdasm_register	KEYWORD2
+cmddasm_register	KEYWORD2
 
 
 ######################################

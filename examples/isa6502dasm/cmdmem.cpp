@@ -1,12 +1,11 @@
-// cmdmem.cpp - implements several commands to access memory (write, read, mem)
+// cmdmem.cpp - implements several commands to access memory (write, read)
 
 #include <Arduino.h>
-#include <stdint.h>
-#include "mem.h"
 #include "cmd.h"
+#include "cmdmem.h"
 
 
-// cmdread` =============================================================================
+// cmdread =============================================================================
 
 
 // Next addr to read
@@ -16,12 +15,12 @@ uint16_t cmdread_addr;
 // Reads 'num' bytes from memory, starting at 'addr'.
 // Prints all values to Serial (in lines of 'CMD_BYTESPERLINE' bytes).
 #define CMD_BYTESPERLINE 16
-void cmdread_read( uint16_t addr, uint16_t num ) {
+static void cmdread_read( uint16_t addr, uint16_t num ) {
   char buf[8];
   int n= 0;
   while( num>0 ) {
     if( n%CMD_BYTESPERLINE==0 ) { snprintf_P(buf,sizeof(buf),PSTR("%04x:"),addr); Serial.print(buf); }
-    uint8_t data= mem[ addr%MEM_SIZE ];
+    uint8_t data= mem_read(addr);
     snprintf_P(buf,sizeof(buf),PSTR(" %02x"),data); Serial.print(buf);
     n++; num--; addr++; // auto wraps
     if( n%CMD_BYTESPERLINE==0 ) { Serial.println(); }
@@ -32,7 +31,7 @@ void cmdread_read( uint16_t addr, uint16_t num ) {
 
 #define CMDREAD_NUM 0x40 // also in help
 // The handler for the "read" command
-void cmdread_main( int argc, char * argv[] ) {
+static void cmdread_main( int argc, char * argv[] ) {
   // read [ <addr> [ <num> ] ]
   if( argc==1 ) { cmdread_read(cmdread_addr,CMDREAD_NUM); return; }
   // Parse addr
@@ -49,13 +48,15 @@ void cmdread_main( int argc, char * argv[] ) {
   Serial.println(F("ERROR: read: too many arguments"));
 }
 
-const char cmdread_longhelp[] PROGMEM = 
+
+static const char cmdread_longhelp[] PROGMEM = 
   "SYNTAX: read [ <addr> [ <num> ] ]\n"
   "- reads <num> bytes from memory, starting at location <addr>\n"
   "- when <num> is absent, it defaults to 40\n"
   "- when <addr> is absent or -, it defaults to \"previous\" address\n"
   "- <addr> and <num> are 0000..FFFF\n"
 ;
+
   
 // Note cmd_register needs all strings to be PROGMEM strings. For the short string we do that inline with PSTR.
 void cmdread_register(void) {
@@ -70,7 +71,7 @@ void cmdread_register(void) {
 uint16_t cmdwrite_addr;
 
 
-void cmdwrite_stream( int argc, char * argv[] ) {
+static void cmdwrite_stream( int argc, char * argv[] ) {
   if( argc==0 ) { // no arguments toggles streaming mode
     if( cmd_get_streamfunc()==0 ) cmd_set_streamfunc(cmdwrite_stream); else cmd_set_streamfunc(0);
   }
@@ -83,7 +84,7 @@ void cmdwrite_stream( int argc, char * argv[] ) {
       Serial.println(F("ignored"));
       break; // Not return, we need to update streaming prompt
     }
-    mem[ cmdwrite_addr%MEM_SIZE ] = data;
+    mem_write(cmdwrite_addr, data);
     cmdwrite_addr++;
   }
   // Set the streaming prompt (will only be shown in streaming mode)
@@ -103,7 +104,7 @@ static void cmdwrite_main(int argc, char * argv[]) {
 
 
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
-const char cmdwrite_longhelp[] PROGMEM = 
+static const char cmdwrite_longhelp[] PROGMEM = 
   "SYNTAX: write <addr> <data>...\n"
   "- writes <data> byte to memory location <addr>\n"
   "- multiple <data> bytes allowed (auto increment of <addr>)\n"
@@ -113,47 +114,9 @@ const char cmdwrite_longhelp[] PROGMEM =
   "- <addr> is 0000..FFFF, but physical memory is limited and mirrored\n"
 ;
 
+
 // Note cmd_register needs all strings to be PROGMEM strings. For the short string we do that inline with PSTR.
 void cmdwrite_register(void) {
   cmd_register(cmdwrite_main, PSTR("write"), PSTR("write to memory (supports streaming)"), cmdwrite_longhelp);
 }
 
-
-// cmdmem =============================================================================
-
-
-// The memory command handler
-static void cmdmem_main(int argc, char * argv[]) {
-  (void)argv; // unsused
-  // Note cmd_isprefix needs a PROGMEM string. PSTR stores the string in PROGMEM.
-  if( argc==2 && cmd_isprefix(PSTR("size"),argv[1]) ) { 
-    Serial.print(F("mem: size: "));
-    Serial.print(MEM_SIZE,HEX);
-    Serial.print(F("B (dec "));
-    Serial.print(MEM_SIZE);
-    Serial.print(F("B)"));
-    Serial.println();
-    return;
-  }
-  if( argc==2 && cmd_isprefix(PSTR("erase"),argv[1]) ) { 
-    for( int a=0; a<MEM_SIZE; a++) mem[a]=0;
-    Serial.println(F("mem: erase: completed"));
-    return;
-  }
-  Serial.println(F("ERROR: mem: unexpected arguments")); 
-}
-
-
-// Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
-const char cmdmem_longhelp[] PROGMEM = 
-  "SYNTAX: mem size\n"
-  "- shows memory size\n"
-  "SYNTAX: mem erase\n"
-  "- erases the entire memory\n"
-;
-
-
-// Note cmd_register needs all strings to be PROGMEM strings. For the short string we do that inline with PSTR.
-void cmdmem_register(void) {
-  cmd_register(cmdmem_main, PSTR("mem"), PSTR("information on the memory"), cmdmem_longhelp);
-}

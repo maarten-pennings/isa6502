@@ -2,10 +2,9 @@
 
 
 #include <Arduino.h>
-#include <stdint.h>
 #include "isa.h"
 #include "cmd.h"
-#include "mem.h"
+#include "cmddasm.h"
 
 
 // DISASSEMBLER ====================================================================
@@ -17,15 +16,15 @@ uint16_t cmddasm_addr;
 
 // Disassembles 'num' instructions from memory, starting at 'addr'.
 // Prints all values to Serial.
-void cmddasm_dasm( uint16_t addr, uint16_t num ) {
+static void cmddasm_dasm( uint16_t addr, uint16_t num ) {
   while( num>0 ) {
     // Get all data for the instruction
-    uint8_t opcode= mem[ addr%MEM_SIZE ];
+    uint8_t opcode= mem_read(addr);
     uint8_t iix= isa_opcode_iix(opcode);
     uint8_t aix= isa_opcode_aix(opcode);
     uint8_t bytes= isa_addrmode_bytes(aix);
-    uint8_t op1= mem[ (addr+1)%MEM_SIZE ];
-    uint8_t op2= mem[ (addr+2)%MEM_SIZE ];
+    uint8_t op1= mem_read(addr+1);
+    uint8_t op2= mem_read(addr+2);
     // Prepare format
     char opsB[7];
     char opsT[5];
@@ -55,9 +54,10 @@ void cmddasm_dasm( uint16_t addr, uint16_t num ) {
   cmddasm_addr= addr;
 }
 
+
 #define CMDDASM_NUM 8 // also in help
 // The handler for the "dasm" command
-void cmddasm_main( int argc, char * argv[] ) {
+static void cmddasm_main( int argc, char * argv[] ) {
   // dasm [ <addr> [ <num> ] ]
   if( argc==1 ) { cmddasm_dasm(cmddasm_addr,CMDDASM_NUM); return; }
   // Parse addr
@@ -74,7 +74,8 @@ void cmddasm_main( int argc, char * argv[] ) {
   Serial.println(F("ERROR: dasm: too many arguments"));
 }
 
-const char cmddasm_longhelp[] PROGMEM = 
+
+static const char cmddasm_longhelp[] PROGMEM = 
   "SYNTAX: dasm [ <addr> [ <num> ] ]\n"
   "- disassembles <num> instructions from memory, starting at location <addr>\n"
   "- when <num> is absent, it defaults to 8\n"
@@ -96,7 +97,7 @@ void cmddasm_register(void) {
 uint16_t cmdasm_addr= 0x0200; // page 0 is zero-page, page 1 is stack
 
 
-void cmdasm_stream( int argc, char * argv[] ) {
+static void cmdasm_stream( int argc, char * argv[] ) {
   char buf[20];
   if( argc==0 ) { // no arguments toggles streaming mode
     if( cmd_get_streamfunc()==0 ) cmd_set_streamfunc(cmdasm_stream); else cmd_set_streamfunc(0);
@@ -105,7 +106,7 @@ void cmdasm_stream( int argc, char * argv[] ) {
     uint16_t addr= cmddasm_addr;
     if( addr==cmdasm_addr ) { Serial.println(F("ERROR: asm: can not undo")); return; }
     while(1) {
-      uint8_t opcode= mem[ addr%MEM_SIZE ];
+      uint8_t opcode= mem_read(addr);
       uint8_t aix= isa_opcode_aix(opcode);
       uint8_t bytes= isa_addrmode_bytes(aix);
       if( addr+bytes == cmdasm_addr ) break;
@@ -136,9 +137,9 @@ void cmdasm_stream( int argc, char * argv[] ) {
     // Check
     if( argc>2 ) { Serial.println(F("ERROR: asm: text after operand")); return; }
     // Now assemble
-    if( bytes>=1 ) { mem[cmdasm_addr++%MEM_SIZE]=opcode; }
-    if( bytes>=2 ) { mem[cmdasm_addr++%MEM_SIZE]=op&0xFF; }
-    if( bytes>=3 ) { mem[cmdasm_addr++%MEM_SIZE]=(op>>8)&0xFF; }
+    if( bytes>=1 ) { mem_write(cmdasm_addr++, opcode); }
+    if( bytes>=2 ) { mem_write(cmdasm_addr++, op&0xFF); }
+    if( bytes>=3 ) { mem_write(cmdasm_addr++, (op>>8)&0xFF); }
     // Print hints
     #define PAGE(a) (((a)>>8)&0xff)
     if( aix==ISA_AIX_ABS && op<0x100 ) Serial.println(F("INFO: asm: suggest ZPG instead of ABS (try - for undo)")); 
@@ -152,7 +153,7 @@ void cmdasm_stream( int argc, char * argv[] ) {
 
 
 // The handler for the "asm" command
-void cmdasm_main( int argc, char * argv[] ) {
+static void cmdasm_main( int argc, char * argv[] ) {
   argc--; argv++; // remove 'asm'
   uint16_t addr;
   if( argc==0 ) { 
@@ -173,7 +174,7 @@ void cmdasm_main( int argc, char * argv[] ) {
 }
 
 
-const char cmdasm_longhelp[] PROGMEM = 
+static const char cmdasm_longhelp[] PROGMEM = 
   "SYNTAX: asm [ <addr> ] [ <inst> ]\n"
   "- assembles instruction <inst>, and write it to memory location <addr>\n"
   "- if <inst> is absent, starts streaming mode, one instruction per line\n"

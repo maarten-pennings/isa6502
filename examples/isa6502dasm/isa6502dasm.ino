@@ -2,13 +2,15 @@
 
 #include "isa.h"
 #include "cmd.h"
+#include "cmdmem.h"
+#include "cmddasm.h"
 
-// we are lazy: cmdmem.h does not exist because it has just the registration functions
-extern void cmdread_register(void); 
-extern void cmdwrite_register(void); 
-extern void cmdmem_register(void); 
-extern void cmddasm_register(void); 
-extern void cmdasm_register(void); 
+
+// The read, write, asm and dasm commands expect a memory
+#define MEM_SIZE 1024
+uint8_t mem[MEM_SIZE]={0};
+uint8_t mem_read(uint16_t addr) { return mem[addr%MEM_SIZE];}
+void    mem_write(uint16_t addr, uint8_t data) { mem[addr%MEM_SIZE]=data; }
 
 
 void setup() {
@@ -21,9 +23,8 @@ void setup() {
   // Register in alphabetical order
   cmdasm_register();  
   cmddasm_register();  
-  cmd_register_echo();
-  cmd_register_help();
-  cmdmem_register();  
+  cmdecho_register();
+  cmdhelp_register();
   cmdread_register(); 
   cmdwrite_register();
 }
