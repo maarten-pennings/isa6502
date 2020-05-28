@@ -2,8 +2,11 @@
 
 #include "isa.h"
 #include "cmd.h"
-#include "cmdmem.h"
+#include "cmdman.h"
+#include "cmdread.h"
+#include "cmdwrite.h"
 #include "cmddasm.h"
+#include "cmdasm.h"
 
 
 // The read, write, asm and dasm commands expect a memory
@@ -25,6 +28,7 @@ void setup() {
   cmddasm_register();  
   cmdecho_register();
   cmdhelp_register();
+  cmdman_register();
   cmdread_register(); 
   cmdwrite_register();
 }

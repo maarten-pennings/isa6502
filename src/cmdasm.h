@@ -1,6 +1,6 @@
-// cmdread.h - command to read from memory
-#ifndef __CMDREAD_H__
-#define __CMDREAD_H__
+// cmdasm.h - implements a command for 6502 inline assembler 
+#ifndef __CMDASM_H__
+#define __CMDASM_H__
 
 
 // The context is expected to implement
@@ -10,7 +10,7 @@ extern void    mem_write(uint16_t addr, uint8_t data);
 
 
 // This module implements a command
-void cmdread_register(void);
+void cmdasm_register(void);
 
 
 #endif

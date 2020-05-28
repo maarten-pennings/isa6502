@@ -14,7 +14,7 @@ void setup() {
   cmd_begin();
   cmdecho_register();
   cmdhelp_register();
-  cmdman_register();  // Register our own man command
+  cmdman_register();  // Register only the man command (inspecting tables)
 }
 
 void loop() {
