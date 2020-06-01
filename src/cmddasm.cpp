@@ -35,7 +35,8 @@ static void cmddasm_dasm( uint16_t addr, uint16_t num ) {
     // Print text
     if( iix>0 ) {
       Serial.print(f(isa_instruction_iname(iix))); 
-      isa_unparse(buf,isa_addrmode_syntax(aix),opsT); 
+      isa_snprint_op(buf,sizeof buf, aix,opsT);
+      Serial.print(' ');
       Serial.print(buf);
       if( aix==ISA_AIX_REL ) {
         uint16_t target= addr+bytes+(int8_t)op1;
