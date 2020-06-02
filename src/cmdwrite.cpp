@@ -77,7 +77,7 @@ exit: // print ignore message and update prompt
 }
 
 
-// The statistics command handler
+// The command handler for the "write" command
 static void cmdwrite_main(int argc, char * argv[]) {
   uint16_t addr;
   if( argc<2 ) {  Serial.println(F("ERROR: write: insufficient arguments (<addr>)")); return; }

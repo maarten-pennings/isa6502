@@ -232,7 +232,7 @@ static void cmdman_printtable_inst(const char * pattern) {
 }
 
 
-// The statistics command handler
+// The handler for the "man" command
 static void cmdman_main(int argc, char * argv[]) {
   // Note cmd_isprefix needs a PROGMEM string. PSTR stores the string in PROGMEM.
   if( argc==1 ) { 
