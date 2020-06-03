@@ -136,15 +136,15 @@ found 8 results
 >> 
 ```
 
-### isa6502prog
+### isa6502mem
 
 The third example is also based on my [command interpreter](https://github.com/maarten-pennings/cmd).
-It uses all commands includes in this library; not only `man` , but also `read` and `write`, and `dasm` and `asm`.
+It uses several commands included in this library; not only `man` , but also `read` and `write`, and `dasm` and `asm`.
 
 Here a demo of a `write` that is `dasm`'ed.
 
 ```txt
-Welcome to isa6502prog, using  is6502 lib V5
+Welcome to isa6502mem, using  is6502 lib V5
 
 Type 'help' for help
 >> write fffc 00 00 66 66 78 D8 A2 FF 9A A9 00 8D 00 80 A9 FF 8D 00 80 D0 F4
