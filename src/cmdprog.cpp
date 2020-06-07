@@ -8,13 +8,9 @@
 
 
 // todo: all strings get F()
-// todo: add a line with only a label
 // todo: reduce print output (all prefixes)
-// todo: make ln_del() which deletes all labels/strings
-// todo: prog move
-// todo: prog file
-// todo: prog compile [install]
-// todo: explain <line> in prog insert long help
+// todo: prog file [load name, save name, del name, dir]
+// todo: extend "prog long help" to explain <line> syntax 
 
 // fixed length string =======================================================================
 
@@ -60,7 +56,9 @@ static uint8_t fs_add(char*s) {
 
 // This is the "free" of the memory manager.
 // Marks slot `fsx` as empty, making it available for `add` again.
+// It is safe to fs_del(0) - it does nothing
 static void fs_del(uint8_t fsx) {
+  // Serial.print("fs_del:"); Serial.println(fsx);
   if( fsx<1 || fsx>=FS_NUM ) return; // index out of range
   fs_store[fsx][0]='\0';  // mark slot as empty
 }
@@ -642,6 +640,37 @@ static ln_t * ln_parse(int argc, char* argv[]) {
   return 0;
 }
 
+void ln_del(ln_t * ln) {
+  // Serial.print("ln_del "); Serial.println(ln-&ln_store[0]);
+  switch( ln->tag ) {
+  case LN_TAG_COMMENT       : 
+    for( uint8_t i=0; i<sizeof(ln->cmt.cmt_fsxs); i++ ) fs_del(ln->cmt.cmt_fsxs[i]); 
+    return;
+  case LN_TAG_PRAGMA_ORG    : 
+    // skip
+    return;
+  case LN_TAG_PRAGMA_BYTES  : 
+    fs_del(ln->bytes.lbl_fsx); 
+    fs_del(ln->bytes.bytes_fsx);
+    return;
+  case LN_TAG_PRAGMA_WORDS  : 
+    fs_del(ln->words.lbl_fsx); 
+    fs_del(ln->words.words_fsx);
+    return;
+  case LN_TAG_PRAGMA_EQBYTE : 
+    fs_del(ln->eqbyte.lbl_fsx); 
+    return;
+  case LN_TAG_PRAGMA_EQWORD : 
+    fs_del(ln->eqword.lbl_fsx); 
+    return;
+  case LN_TAG_INST          : 
+    fs_del(ln->inst.lbl_fsx); 
+    if( ln->inst.flags & LN_FLAG_SYM ) fs_del(ln->inst.op); 
+    return;
+  }
+  Serial.print(F("ERROR: prog: delete: internal error (tag ")); Serial.print(ln->tag); Serial.println(')');
+}
+
 
 // Printing of lines =============================================================================
 
@@ -811,9 +840,14 @@ static void cmdprog_delete(int argc, char * argv[]) {
     Serial.println(F("ERROR: prog: delete: too many arguments")); return;
   }
   uint16_t len= num2-num1+1;
-  for( uint16_t i=num1; i<ln_num-len; i++ ) ln_store[i]= ln_store[i+len];
+  for( uint16_t i=num1; i<=num2; i++ ) { ln_del(&ln_store[i]); if( i+len<ln_num ) ln_store[i]= ln_store[i+len]; }
   ln_num-= len;
-  Serial.print(F("INFO: prog: delete: deleted ")); Serial.print(len); Serial.println(F(" lines"));
+  Serial.print(F("deleted ")); Serial.print(len); Serial.println(F(" lines"));
+}
+
+static void cmdprog_compile(int argc, char * argv[]) {
+  Serial.print("compile "); 
+  if( argc==0 ) Serial.println("only"); else Serial.println(argv[0]); 
 }
 
 static uint16_t cmdprog_insert_linenum;
@@ -851,15 +885,56 @@ static void cmdprog_main(int argc, char * argv[]) {
     cmdprog_insert_stream(argc, argv); 
     return;
   }
+  if( argc>1 && cmd_isprefix(PSTR("replace"),argv[1]) ) { 
+    if( argc<4 ) { Serial.println(F("ERROR: prog: replace: expected <linenum> and <line>")); return; }
+    uint16_t linenum;
+    if( !cmd_parse(argv[2],&linenum) ) { Serial.println(F("ERROR: prog: replace: expected hex <linenum>")); return; }    
+    if( linenum>=ln_num ) { Serial.println(F("ERROR: prog: replace: <linenum> does not exist")); return; }
+    ln_t * ln= ln_parse(argc-3, argv+3);
+    if( ln!=0 ) ln_store[linenum]= *ln; 
+    return;
+  }
   if( argc>1 && cmd_isprefix(PSTR("list"),argv[1]) ) { 
     cmdprog_list(argc,argv);
+    return;
+  }
+  if( argc>1 && cmd_isprefix(PSTR("move"),argv[1]) ) { 
+    if( argc<5 ) { Serial.println(F("ERROR: prog: move: expected 3 line numbers")); return; }
+    uint16_t num1;
+    if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: move: expected hex <num1>")); return; }    
+    uint16_t num2;
+    if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: prog: move: expected hex <num2>")); return; }    
+    uint16_t num3;
+    if( !cmd_parse(argv[4],&num3) ) { Serial.println(F("ERROR: prog: move: expected hex <num3>")); return; }    
+    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: move: <num1> does not exist")); return; }
+    if( num2>=ln_num ) { Serial.println(F("ERROR: prog: move: <num2> does not exist")); return; }
+    if( num1>num2 ) { Serial.println(F("ERROR: prog: move: <num2> must be at least <num1>")); return; }
+    if( num3>=ln_num ) { Serial.println(F("ERROR: prog: move: <num3> to high")); return; }
+    if( num1<=num3 && num3<=num2 ) { Serial.println(F("ERROR: prog: move: <num3> can not be within <num1>..<num2>")); return; }
+    while( num1<=num2 ) {
+      ln_temp= ln_store[num1];
+      if( num3<num1 ) { // move before
+         for( uint16_t i=num1; i>num3; i--) ln_store[i]= ln_store[i-1];
+         ln_store[num3]= ln_temp;
+         num1++; num3++;
+      } else { // move after
+         for( uint16_t i=num1; i<num3; i++) ln_store[i]= ln_store[i+1];
+         ln_store[num3-1]= ln_temp;
+         num2--;
+      }
+    }
+    Serial.print(F("ERROR: prog: move: moved ")); Serial.print(num2+1-num1); Serial.println(F("lines")); 
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("delete"),argv[1]) ) { 
     cmdprog_delete(argc,argv);
     return;
   }
-  if( argc==2 && cmd_isprefix(PSTR("mem"),argv[1]) ) { 
+  if( argc>1 && cmd_isprefix(PSTR("compile"),argv[1]) ) { 
+    cmdprog_compile(argc-2,argv+2);
+    return;
+  }
+  if( argc==2 && cmd_isprefix(PSTR("stat"),argv[1]) ) { 
     Serial.print(F("lines  used ")); Serial.print(ln_num); Serial.print('/'); Serial.println(LN_NUM); 
     Serial.print(F("labels used ")); Serial.print(FS_NUM-1-fs_free()); Serial.print('/'); Serial.println(FS_NUM-1); 
     return;
@@ -878,18 +953,27 @@ const char cmdprog_longhelp[] PROGMEM =
   "- inserts <line> to program at position <linenum>\n"
   "- if <line> is absent, starts streaming mode (empty line ends it)\n"
   "- if <linenum> is absent, starts streaming mode at end of program\n"
+  "SYNTAX: prog replace <linenum> <line> ]\n"
+  "- overwrites the program at position <linenum> with <line>\n"
   "SYNTAX: prog list [<num1> [<num2>]]\n"
   "- lists the program from the line number <num1> to <num2>\n"
   "- if both <num1> and <num2> absent lists whole program"
   "- if <num2> is absent lists only line <num1>\n"
   "- if both present, lists lines <num1> upto <num2>\n"
   "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
+  "SYNTAX: prog move <num1> <num2> <num3>\n"
+  "- moves lines <num1> up to and including <num2> to just before <num3>\n"
   "SYNTAX: prog delete <num1> [<num2>]\n"
   "- deletes the program lines from the line number <num1> to <num2>\n"
   "- if <num2> is absent deletes only line <num1>\n"
   "- if both present, deletes lines <num1> upto <num2>\n"
   "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
-  "SYNTAX: prog mem\n"
+  "SYNTAX: prog compile [list | dump | install]\n"
+  "- compiles the program; giving info\n"
+  "- 'list' compiles and produces an instruction listing\n"
+  "- 'dump' compiles and produces a hex dump\n"
+  "- 'install' compiles and writes to memory\n"
+  "SYNTAX: prog stat\n"
   "- shows the memory usage of the program\n"
   "SYNTAX: prog debug\n"
   "- debug: shows the table of strings\n"
