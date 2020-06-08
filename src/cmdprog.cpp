@@ -7,10 +7,14 @@
 #include "cmd.h"
 
 
-// todo: all strings get F()
+// todo: all strings get F() - also in sprintf
 // todo: reduce print output (all prefixes)
 // todo: prog file [load name, save name, del name, dir]
 // todo: extend "prog long help" to explain <line> syntax 
+// todo: all hex output in uppercase (so that labels can use lower case)
+// todo: check that two .ORGs do not overwrite each other
+// todo: .BYTES with 8 bytes gives error, but compile seems to still use 8
+// todo: ".WORDS label" does not work
 
 // fixed length string =======================================================================
 
@@ -136,8 +140,9 @@ static int fs_snprint(char*str, int size, int minlen, uint8_t fsx) {
 }
 
 // Returns the raw bytes from slot `fsx`, by writing them into `buf`.
-// `buf` must have size FS_SIZE (actually FS_SIZE-1 is enough).
+// `bytes` must have size FS_SIZE (actually FS_SIZE-1 is enough).
 // Return value is amount of valid bytes in buf.
+// Note bytes may be 0 in which case still the size is returned.
 static int fs_get_raw(uint8_t fsx, uint8_t * bytes) {
   if( fsx<1 || fsx>=FS_NUM || fs_store[fsx][0]=='\0' ) return 0; // index out of range or free slot
   uint8_t * encbytes= (uint8_t*)fs_store[fsx];
@@ -147,7 +152,7 @@ static int fs_get_raw(uint8_t fsx, uint8_t * bytes) {
   while( *p!=0 && ix<FS_SIZE ) {
     uint8_t bit= msbs & 1;
     msbs>>= 1;
-    if( bit ) bytes[ix]=*p|0x80; else bytes[ix]=*p&~0x80;
+    if( bytes ) { if( bit ) bytes[ix]=*p|0x80; else bytes[ix]=*p&~0x80; }
     p++; ix++;
   }
   return ix;
@@ -790,6 +795,207 @@ static int ln_snprint(char * str, int size, ln_t * ln) {
 }
 
 
+// Compiling =====================================================================================
+
+// Stores compile info on a line
+typedef struct comp_ln_s {
+  uint16_t addr;
+} comp_ln_t;
+// Stores compile info on a fixed string
+#define COMP_FLAGS_FSUSE   1 // When fixed string is a "using occurrence" (right hand side label)
+#define COMP_FLAGS_FSDEF   2 // When fixed string is a "defining occurrence" (left hand side label)
+#define COMP_FLAGS_FSOTHER 4 // When fixed string is a other (comment, bytes, words)
+#define COMP_FLAGS_REFD    8 // When defining occurrence is referenced (there is a using occurrence)
+#define COMP_FLAGS_BYTE   16 // When defining occurrence is a byte
+typedef struct comp_fs_s {
+  uint8_t  flags; // from the above COMP_FLAGS_XXX
+  uint16_t val;   // for an FSDEF the value (the address, or the [eq]byte or [eq]word)
+  uint8_t  first; // computed in second pass
+} comp_fs_t;
+// Stores compile info on entire program
+typedef struct comp_s {
+  comp_ln_t ln[LN_NUM+1]; // for end address
+  comp_fs_t fs[FS_NUM];
+  bool reset_vector_present; // if false, poke 0200 at fffc/fffd
+} PACKED comp_t ;
+
+static comp_t comp_result;
+
+static bool comp_compile( void ) {
+  int warnings=0;
+  int errors=0;
+  bool found_org= false;
+  bool found_fffc= false; 
+  bool found_fffd= false; 
+  uint16_t addr=0x200;
+  for( uint16_t lix=0; lix<ln_num; lix++ ) {
+    ln_t * ln= &ln_store[lix]; 
+    if( ln->tag==LN_TAG_COMMENT ) { 
+      continue;
+    }
+    if( ln->tag==LN_TAG_PRAGMA_EQBYTE ) {
+      uint8_t lbl= ln->eqbyte.lbl_fsx;
+      if( lbl==0 ) {
+        Serial.println(F("ERROR: prog: compile: label missing for .EQBYTE")); 
+        warnings++;
+      } else {
+        comp_fs_t * cfs= &comp_result.fs[lbl];
+        cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_BYTE;
+        cfs->val= ln->eqbyte.byte;
+      }
+      continue;
+    }
+    if( ln->tag==LN_TAG_PRAGMA_EQWORD ) { 
+      uint8_t lbl= ln->eqword.lbl_fsx;
+      if( lbl==0 ) {
+        Serial.println(F("ERROR: prog: compile: label missing for .EQWORD")); 
+        warnings++;
+      } else {
+        comp_fs_t * cfs= &comp_result.fs[lbl];
+        cfs->flags= COMP_FLAGS_FSDEF;
+        cfs->val= ln->eqword.word;
+      }
+      continue;
+    }
+    if( ln->tag==LN_TAG_PRAGMA_ORG ) { 
+      found_org= true;
+      addr= ln->org.addr;
+      continue;
+    } 
+    if( ! found_org ) {
+      Serial.println(F("WARNING: prog: compile: no .ORG, assuming 0x200")); 
+      found_org= true; // We "found"it, using the default
+      warnings++;
+    }
+    if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
+      uint8_t lbl= ln->bytes.lbl_fsx;
+      if( lbl==0 ) {
+        // skip
+      } else {
+        comp_fs_t * cfs= &comp_result.fs[lbl];
+        cfs->flags= COMP_FLAGS_FSDEF;
+        cfs->val= addr;
+      }
+      comp_result.ln[lix].addr= addr;
+      addr+= fs_get_raw(ln->bytes.bytes_fsx, 0);
+      continue;
+    } 
+    if( ln->tag==LN_TAG_PRAGMA_WORDS ) { 
+      uint8_t lbl= ln->words.lbl_fsx;
+      if( lbl==0 ) {
+        // skip
+      } else {
+        comp_fs_t * cfs= &comp_result.fs[lbl];
+        cfs->flags= COMP_FLAGS_FSDEF;
+        cfs->val= addr;
+      }
+      comp_result.ln[lix].addr= addr;
+      addr+= fs_get_raw(ln->words.words_fsx, 0);
+      continue;
+    } 
+    // Does inst have a label
+    uint8_t lbl= ln->inst.lbl_fsx;
+    if( lbl==0 ) {
+      // skip
+    } else {
+      comp_fs_t * cfs= &comp_result.fs[lbl];
+      cfs->flags= COMP_FLAGS_FSDEF;
+      cfs->val= addr;
+    }
+    // Get instruction size
+    uint8_t opcode= ln->inst.opcode;
+    uint8_t aix= isa_opcode_aix(opcode);
+    uint8_t bytes= isa_addrmode_bytes(aix);
+    comp_result.ln[lix].addr= addr;
+    if( addr<=0xfffc && 0xfffc<addr+bytes) found_fffc= true; // todo: does not work for .WORDS/.BYTES
+    if( addr<=0xfffd && 0xfffd<addr+bytes) found_fffd= true; // todo: does not work for .WORDS/.BYTES
+    addr+= bytes;
+  }
+  comp_result.ln[ln_num].addr= addr;
+  comp_result.reset_vector_present= found_fffc && found_fffd;
+  if( !comp_result.reset_vector_present ) { Serial.println(F("WARNING: prog: compile: reset vector missing (FFFC and/or FFFD), assuming 0200")); warnings++; }
+  Serial.print(F("INFO: errors ")); Serial.print(errors); Serial.print(F(", warnings ")); Serial.println(warnings); 
+  Serial.println(); 
+  return errors==0;
+}
+
+
+static void comp_list( void ) {
+  char buf[40]; 
+  uint8_t bytes[FS_SIZE];
+  int bix=0,len=0;
+  for(uint16_t lix=0; lix<ln_num; lix++) {
+    ln_t * ln= &ln_store[lix]; 
+    if( ln->tag==LN_TAG_COMMENT || ln->tag==LN_TAG_PRAGMA_ORG || ln->tag==LN_TAG_PRAGMA_EQBYTE || ln->tag==LN_TAG_PRAGMA_EQWORD ) { 
+      Serial.print(F("     |             ")); 
+    } else if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
+      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr); 
+      Serial.print(buf); 
+      len= fs_get_raw(ln->bytes.bytes_fsx,bytes);
+      bix=0; while( bix<len && bix<4 ) {
+        snprintf(buf,40,"%02x ",bytes[bix++]); 
+        Serial.print(buf); 
+      }
+      for(int i=len; i<4; i++ ) Serial.print(F("   "));
+    } else if( ln->tag==LN_TAG_PRAGMA_WORDS ) { 
+      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr); 
+      Serial.print(buf); 
+      len= fs_get_raw(ln->words.words_fsx,bytes);
+      bix=0; while( bix<len && bix<4 ) {
+        snprintf(buf,40,"%02x ",bytes[bix++]); 
+        Serial.print(buf); 
+      }
+      for(int i=len; i<4; i++ ) Serial.print(F("   "));
+    } else {
+      // Print computed address
+      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr); 
+      Serial.print(buf); 
+      // Print opcode
+      uint8_t opcode= ln->inst.opcode;
+      snprintf(buf,40,"%02x ",opcode); Serial.print(buf); 
+      // Print operand(s)
+      uint8_t aix= isa_opcode_aix(opcode);
+      uint8_t bytes= isa_addrmode_bytes(aix);
+      if(      bytes==1 ) snprintf(buf,40,"         "); 
+      else if( bytes==2 ) snprintf(buf,40,"%02x       ",(ln->inst.op)&0xFF ); // todo: check op is a byte (when it is a symbol)
+      else if( bytes==3 ) snprintf(buf,40,"%02x %02x    ",(ln->inst.op)&0xFF, (ln->inst.op>>8)&0xFF ); // todo: op is a word (when it is a symbol)
+      Serial.print(buf); 
+    }
+    // Print linenum
+    snprintf(buf,40,"| %03x ",lix);
+    Serial.print(buf); 
+    // Print source
+    ln_snprint(buf,40,ln);
+    Serial.println(buf); 
+    // Special case: too many bytes in .BYTES or .WORDS, so we print a next line
+    if( ln->tag==LN_TAG_PRAGMA_BYTES && bix<len ) { 
+      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr+bix); 
+      Serial.print(buf); 
+      while( bix<len ) {
+        snprintf(buf,40,"%02x ",bytes[bix++]); 
+        Serial.print(buf); 
+      }
+      for(int i=len; i<8; i++ ) Serial.print(F("   "));
+      Serial.println(F("| more bytes")); 
+    } 
+    if( ln->tag==LN_TAG_PRAGMA_WORDS && bix<len ) { 
+      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr+bix); 
+      Serial.print(buf); 
+      while( bix<len ) {
+        snprintf(buf,40,"%02x ",bytes[bix++]); 
+        Serial.print(buf); 
+      }
+      for(int i=len; i<8; i++ ) Serial.print(F("   "));
+      Serial.println(F("| more words")); 
+    }    
+  }
+  // The end address
+  snprintf(buf,40,"%04x |             | end\n",comp_result.ln[ln_num].addr); 
+  Serial.print(buf); 
+  // Vector?
+  if( !comp_result.reset_vector_present ) Serial.println(F("FFFC | 00 02       | implicit reset vector")); 
+}
+
 // Command handling ==============================================================================
 
 
@@ -845,9 +1051,35 @@ static void cmdprog_delete(int argc, char * argv[]) {
   Serial.print(F("deleted ")); Serial.print(len); Serial.println(F(" lines"));
 }
 
-static void cmdprog_compile(int argc, char * argv[]) {
-  Serial.print("compile "); 
-  if( argc==0 ) Serial.println("only"); else Serial.println(argv[0]); 
+static void cmdprog_move(int argc, char * argv[]) {
+  if( argc<5 ) { Serial.println(F("ERROR: prog: move: expected 3 line numbers")); return; }
+  uint16_t num1;
+  if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: move: expected hex <num1>")); return; }    
+  uint16_t num2;
+  if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: prog: move: expected hex <num2>")); return; }    
+  uint16_t num3;
+  if( !cmd_parse(argv[4],&num3) ) { Serial.println(F("ERROR: prog: move: expected hex <num3>")); return; }    
+  if( num1>=ln_num ) { Serial.println(F("ERROR: prog: move: <num1> does not exist")); return; }
+  if( num2>=ln_num ) { Serial.println(F("ERROR: prog: move: <num2> does not exist")); return; }
+  if( num1>num2 ) { Serial.println(F("ERROR: prog: move: <num2> must be at least <num1>")); return; }
+  if( num3>=ln_num ) { Serial.println(F("ERROR: prog: move: <num3> to high")); return; }
+  if( num1<=num3 && num3<=num2 ) { Serial.println(F("ERROR: prog: move: <num3> can not be within <num1>..<num2>")); return; }
+  if( num3==num2+1 ) { Serial.println(F("ERROR: prog: move: move to same location ignored")); return; }
+  // Report result before num1 and num2 are changed
+  Serial.print(F("INFO: prog: move: moved ")); Serial.print(num2+1-num1); Serial.println(F(" lines")); 
+  // Actual move
+  while( num1<=num2 ) {
+    ln_temp= ln_store[num1];
+    if( num3<num1 ) { // move before
+       for( uint16_t i=num1; i>num3; i--) ln_store[i]= ln_store[i-1];
+       ln_store[num3]= ln_temp;
+       num1++; num3++;
+    } else { // move after
+       for( uint16_t i=num1; i<num3; i++) ln_store[i]= ln_store[i+1];
+       ln_store[num3-1]= ln_temp;
+       num2--;
+    }
+  }
 }
 
 static uint16_t cmdprog_insert_linenum;
@@ -867,6 +1099,16 @@ static void cmdprog_insert_stream(int argc, char * argv[]) {
   // Update the streaming prompt (will only be shown in streaming mode)
   char buf[8]; snprintf_P(buf,sizeof buf, PSTR("P:%03x> "),cmdprog_insert_linenum); cmd_set_streamprompt(buf);
   
+}
+
+static void cmdprog_compile(int argc, char * argv[]) {
+  (void)argc;
+  (void)argv;
+  bool ok=comp_compile();
+  if( ok ) comp_list();  
+  // todo: list
+  // todo: map
+  // todo: install
 }
 
 // The main command handler
@@ -899,31 +1141,7 @@ static void cmdprog_main(int argc, char * argv[]) {
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("move"),argv[1]) ) { 
-    if( argc<5 ) { Serial.println(F("ERROR: prog: move: expected 3 line numbers")); return; }
-    uint16_t num1;
-    if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: move: expected hex <num1>")); return; }    
-    uint16_t num2;
-    if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: prog: move: expected hex <num2>")); return; }    
-    uint16_t num3;
-    if( !cmd_parse(argv[4],&num3) ) { Serial.println(F("ERROR: prog: move: expected hex <num3>")); return; }    
-    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: move: <num1> does not exist")); return; }
-    if( num2>=ln_num ) { Serial.println(F("ERROR: prog: move: <num2> does not exist")); return; }
-    if( num1>num2 ) { Serial.println(F("ERROR: prog: move: <num2> must be at least <num1>")); return; }
-    if( num3>=ln_num ) { Serial.println(F("ERROR: prog: move: <num3> to high")); return; }
-    if( num1<=num3 && num3<=num2 ) { Serial.println(F("ERROR: prog: move: <num3> can not be within <num1>..<num2>")); return; }
-    while( num1<=num2 ) {
-      ln_temp= ln_store[num1];
-      if( num3<num1 ) { // move before
-         for( uint16_t i=num1; i>num3; i--) ln_store[i]= ln_store[i-1];
-         ln_store[num3]= ln_temp;
-         num1++; num3++;
-      } else { // move after
-         for( uint16_t i=num1; i<num3; i++) ln_store[i]= ln_store[i+1];
-         ln_store[num3-1]= ln_temp;
-         num2--;
-      }
-    }
-    Serial.print(F("ERROR: prog: move: moved ")); Serial.print(num2+1-num1); Serial.println(F("lines")); 
+    cmdprog_move(argc,argv);
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("delete"),argv[1]) ) { 
@@ -934,13 +1152,10 @@ static void cmdprog_main(int argc, char * argv[]) {
     cmdprog_compile(argc-2,argv+2);
     return;
   }
-  if( argc==2 && cmd_isprefix(PSTR("stat"),argv[1]) ) { 
+  if( argc>1 && cmd_isprefix(PSTR("stat"),argv[1]) ) { 
     Serial.print(F("lines  used ")); Serial.print(ln_num); Serial.print('/'); Serial.println(LN_NUM); 
     Serial.print(F("labels used ")); Serial.print(FS_NUM-1-fs_free()); Serial.print('/'); Serial.println(FS_NUM-1); 
-    return;
-  }
-  if( argc==2 && cmd_isprefix(PSTR("debug"),argv[1]) ) { 
-    fs_dump();
+    if( argc>2 && cmd_isprefix(PSTR("strings"),argv[1]) ) fs_dump();
     return;
   }
   Serial.println(F("ERROR: prog: unexpected arguments")); 
@@ -968,15 +1183,13 @@ const char cmdprog_longhelp[] PROGMEM =
   "- if <num2> is absent deletes only line <num1>\n"
   "- if both present, deletes lines <num1> upto <num2>\n"
   "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
-  "SYNTAX: prog compile [list | dump | install]\n"
+  "SYNTAX: prog compile [list | map | install]\n"
   "- compiles the program; giving info\n"
   "- 'list' compiles and produces an instruction listing\n"
-  "- 'dump' compiles and produces a hex dump\n"
+  "- 'symbols' compiles and produces a map (label values)\n"
   "- 'install' compiles and writes to memory\n"
-  "SYNTAX: prog stat\n"
-  "- shows the memory usage of the program\n"
-  "SYNTAX: prog debug\n"
-  "- debug: shows the table of strings\n"
+  "SYNTAX: prog stat [strings]\n"
+  "- shows the memory usage of the program (and optionally the string table)\n"
 ;
 
 
