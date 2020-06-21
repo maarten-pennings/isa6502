@@ -13,15 +13,17 @@
 // todo: extend "prog long help" to explain <line> syntax 
 // todo: all hex output in uppercase (so that labels can use lower case)
 // todo: check that two .ORGs do not overwrite each other
-// todo: .BYTES with 8 bytes gives error, but compile seems to still use 8
-// todo: ".WORDS label" does not work
+// todo: ".WORDS label" does not work (introduce .VECTOR ?)
 
-// fixed length string =======================================================================
+
+// ==========================================================================
+// Fixed length string
+// ==========================================================================
 
 // A memory manager for strings of (max) length FS_SIZE.
 // The memory manager has FS_NUM slots (blocks of FS_SIZE bytes).
-#define FS_NUM 16    // Number of fixed-length-strings (power of two is good for the "mod")
-#define FS_SIZE 8    // Length of the fixed-length-strings (padded with 0s; terminating 0 is not stored)
+#define FS_NUM  20 // Number of fixed-length-strings (power of two is good for the "mod")
+#define FS_SIZE  8 // Length of the fixed-length-strings (padded with 0s; terminating 0 is not stored)
 typedef char   fs_t[FS_SIZE];
 static fs_t    fs_store[FS_NUM]; // slot 0 not used
 static uint8_t fs_rover; // Pointer used to search next free slot
@@ -56,6 +58,18 @@ static uint8_t fs_add(char*s) {
     fs_rover= (fs_rover+1)%FS_NUM;
     if( fs_rover==fs_rover_old ) return 0; // store full
   }
+}
+
+// Returns true when the two fixed string indices have the same string value 
+static bool fs_eq(uint8_t fsx1, uint8_t fsx2 ) {
+  if( fsx1<1 || fsx1>=FS_NUM ) return false; // index out of range
+  if( fsx2<1 || fsx2>=FS_NUM ) return false; // index out of range
+  char * s1= &fs_store[fsx1][0];
+  char * s2= &fs_store[fsx2][0];
+  while( *s1!='\0' && *s2!='\0' ) {
+    if( *s1++ != *s2++ ) return false;
+  }
+  return *s1==*s2;
 }
 
 // This is the "free" of the memory manager.
@@ -98,23 +112,11 @@ static uint8_t fs_add_raw(uint8_t * bytes, int size) {
   return fs_add((char*)encbytes);
 }
 
-// Returns the string from slot `fsx`. See also fs_snprint().
-// If `fsx` is out of range (or deleted, or 0) returns empty string.
-// The function returns a pointer to a static buffer, so only one call to this function at a time.
-static char * fs_get(uint8_t fsx) {
-  if( fsx<1 || fsx>=FS_NUM ) fsx=0; // return empty string
-//if( fs_store[fsx][0]=='\0') fsx=0; // return empty string for free slot // if the slot is empty any how, not needed to revert to slot 0
-  static char return_buf[FS_SIZE+1]; // +1 for terminating 0
-  for( int i=0; i<FS_SIZE; i++) return_buf[i]= fs_store[fsx][i]; // note fs_store[i] is technically not a string; the termination 0 may be absent
-  return_buf[FS_SIZE]='\0';
-  return &return_buf[0];
-}
-
-// Writes the `fsx`-string (the string from slot `fsx`) to `str`.
-// Writes at most `size` bytes to `str`.
-// When size>0, a terminating zero will be added;
-// even if the `fsx`-string is longer than `size` (the `fsx`-string will be truncated).
-// If the `fsx`-string is shorter than `minlen`, spaces will be appended until `fsx`-string plus spaces equals `minlen`.
+// Writes the `fsx`-string (the string from slot `fsx`) to buffer `str`.
+// If the `fsx`-string is shorter than `minlen`, spaces will be written (appended)
+// until the `fsx`-string plus spaces equals `minlen`. Writes a terminating 0.
+// However, writes at most `size` bytes to `str`, so if the `fsx`-string is longer than `size` the
+// `fsx`-string will be truncated. The terminating zero will always be added (except when size==0).
 // Returns the number of characters that would be written if size were high enough (excluding the terminating 0).
 // In other words, when returnvalue<size the complete `fsx`-string (with padding _and_ terminating 0) is written.
 static int fs_snprint(char*str, int size, int minlen, uint8_t fsx) {
@@ -139,16 +141,16 @@ static int fs_snprint(char*str, int size, int minlen, uint8_t fsx) {
   return len;
 }
 
-// Returns the raw bytes from slot `fsx`, by writing them into `buf`.
+// Returns the raw bytes from slot `fsx`, by writing them into `bytes`.
 // `bytes` must have size FS_SIZE (actually FS_SIZE-1 is enough).
-// Return value is amount of valid bytes in buf.
-// Note bytes may be 0 in which case still the size is returned.
-static int fs_get_raw(uint8_t fsx, uint8_t * bytes) {
+// Return value is amount of valid bytes in `bytes`.
+// Note `bytes` may be 0 in which case still the size is returned.
+static uint8_t fs_get_raw(uint8_t fsx, uint8_t * bytes) {
   if( fsx<1 || fsx>=FS_NUM || fs_store[fsx][0]=='\0' ) return 0; // index out of range or free slot
   uint8_t * encbytes= (uint8_t*)fs_store[fsx];
   uint8_t msbs=encbytes[0];
   uint8_t * p = &encbytes[1]; // item 0 is MSBs so start reading at 1
-  int ix = 0; // start writing bytes[] at 0
+  uint8_t ix = 0; // start writing bytes[] at 0
   while( *p!=0 && ix<FS_SIZE ) {
     uint8_t bit= msbs & 1;
     msbs>>= 1;
@@ -176,14 +178,14 @@ static void fs_dump(void) {
     } else if( fs_store[fsx][0]=='\0' ) {
       Serial.println(F("free"));
     } else {
-      char * s= fs_get(fsx);
-      Serial.print('"'); Serial.print(s); Serial.print('"');
-      if( s[0] & 0x80 ) { // might be bytes
-        uint8_t bytes[FS_SIZE];
+      uint8_t buf[FS_SIZE+1];
+      fs_snprint((char*)buf,FS_SIZE+1,0,fsx);
+      Serial.print('"'); Serial.print((char*)buf); Serial.print('"');
+      if( buf[0] & 0x80 ) { // Is this raw bytes instead of a string?
         Serial.print('=');
         char c='(';
-        int len= fs_get_raw(fsx,bytes);
-        for( int i=0; i<len; i++) { Serial.print(c); Serial.print(bytes[i],HEX); c=','; }
+        int len= fs_get_raw(fsx,buf);
+        for( int i=0; i<len; i++) { Serial.print(c); Serial.print(buf[i],HEX); c=','; }
         Serial.print(')');
       }
       Serial.println();
@@ -191,10 +193,11 @@ static void fs_dump(void) {
   }
 }
 
-// Lines (store of the program) ===================================================================
+// ==========================================================================
+// Lines (storage)
+// ==========================================================================
 
-#define PACKED __attribute__((packed))
-
+// Stores lines of a program (assembler source)
 // These are the tags of the line types
 #define LN_TAG_ERR            0
 #define LN_TAG_COMMENT        1 // ; This is a silly program
@@ -205,9 +208,12 @@ static void fs_dump(void) {
 #define LN_TAG_PRAGMA_EQWORD  6 // pi2      .EQWORD 3141
 #define LN_TAG_INST           7 // loop     LDA #12
 
+// To save RAM, we pack all line types
+#define PACKED __attribute__((packed))
+
 // Stores "; This is a silly program"
 typedef struct ln_comment_s {
-  uint8_t cmt_fsxs[5]; // split the (long) comment over multiple fixed strings (5 because that is the longest other type: ln_inst_s)
+  uint8_t cmt_fsxs[5]; // Split the (long) comment over multiple fixed strings (5 because that is the longest other type: ln_inst_s)
 } PACKED ln_comment_t;
 
 // Stores "         .ORG 0200"
@@ -239,7 +245,8 @@ typedef struct ln_eqword_s {
   uint16_t word;
 } PACKED ln_eqword_t;
 
-#define LN_FLAG_SYM       1 // operand is symbol (so label is used instead of number)
+// The most important line type holds instructions. It has some flags.
+#define LN_FLAG_OPisLBL       1 // operand is symbol (so label is used instead of number)
 #define LN_FLAG_ABSforREL 2 // branch uses ABS notation (so '+' prefix is dropped)
 // We could add a flags for dec,hec,oct,bin.
 // We could add flags for expressions <, >, +1
@@ -252,7 +259,7 @@ typedef struct ln_inst_s {
   uint8_t flags;
 } PACKED ln_inst_t;
 
-// Stores any line (tag tell which)
+// Stores any line (tag tells which)
 typedef struct ln_s {
   uint8_t tag;
   union {
@@ -266,8 +273,23 @@ typedef struct ln_s {
   };
 } PACKED ln_t ;
 
+// The line store, i.e. the program source code
+#define LN_NUM 32
+static ln_t ln_store[LN_NUM];
+// The number of lines in the line store, so ln_store[0..ln_num) is in use
+static uint16_t ln_num;
 
-// Parsing of lines =============================================================================
+// Initializes the store.
+static void ln_init(void) {
+  ln_num=0;
+  if( sizeof(ln_t)!=6 ) Serial.println(F("ERROR: prog: packing or padding problem"));
+}
+
+
+// ==========================================================================
+// Lines (parsing)
+// ==========================================================================
+
 
 // Returns 1 if `s` has the chars allowed in a label - same as identifier in other languages
 // Returns 0 otherwise (empty string, illegal chars, starts with digit)
@@ -286,8 +308,8 @@ static int ln_islabel(char * s) {
 }
 
 // Returns 1 if the `s` is a reserved word.
-// Reserved words are all mnemonics (eg LDA) and addressing mode names (eg IND),
-// but also all register names.
+// Reserved words are all mnemonics (eg LDA), all addressing mode names (eg IND), and all register names.
+// Also, all hex-lookalike ("dead") are considered reserved.
 static int ln_isreserved(char * s) {
   if( s==0 || *s==0 ) return 0;
   if( isa_instruction_find(s) ) return 1;
@@ -309,19 +331,11 @@ static int ln_isreserved(char * s) {
   return ishex;
 }
 
-#define LN_NUM 32
-static uint16_t ln_num;
-static ln_t ln_store[LN_NUM];
-
-// Initializes the program store (ie clears it).
-static void ln_init(void) {
-  ln_num=0;
-  if( sizeof(ln_t)!=6 ) Serial.println(F("ERROR: prog: packing or padding problem"));
-}
-
-static ln_t ln_temp; // buffer used for all ln_parse_xxx() parsers
+// buffer used for all ln_parse_xxx() parsers
+static ln_t ln_temp; 
 
 // Parses `argc`/`argv` for a comment, and returns the parsed comment line (or 0 on parse error)
+// Note: a series of spaces in the comment is collapsed to 1 (the cmd parser does that)
 static ln_t * ln_parse_comment(int argc, char* argv[]) {
   ln_temp.tag= LN_TAG_COMMENT;
 
@@ -394,14 +408,14 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
       while( *operand!=',' && *operand!='\0' ) {
         buf[bufix++]= *operand++;
         if( bufix==sizeof(buf) ) {
-          Serial.print(F("ERROR: prog: .bytes: byte ")); Serial.print(bytesix+1); Serial.println(F("must be 00..FF")); 
+          Serial.print(F("ERROR: prog: .bytes: byte ")); Serial.print(bytesix+1); Serial.println(F(" too long")); 
           goto free_lvl_fsx;        
         }
       }
       buf[bufix++]='\0';
       uint16_t word;
       if( !cmd_parse(buf,&word) || word>0xff ) {
-        Serial.print(F("ERROR: prog: .bytes: byte ")); Serial.print(bytesix+1); Serial.println(F("must be 00..FF")); 
+        Serial.print(F("ERROR: prog: .bytes: byte ")); Serial.print(bytesix+1); Serial.println(F(" must be 00..FF")); 
         goto free_lvl_fsx;      
       }
       if( bytesix==sizeof(bytes) ) {
@@ -434,14 +448,14 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
       while( *operand!=',' && *operand!='\0' ) {
         buf[bufix++]= *operand++;
         if( bufix==sizeof(buf) ) {
-          Serial.print(F("ERROR: prog: .words: word ")); Serial.print(wordsix+1); Serial.println(F("must be 0000..FFFF")); 
+          Serial.print(F("ERROR: prog: .words: word ")); Serial.print(wordsix+1); Serial.println(F(" too long")); 
           goto free_lvl_fsx;        
         }
       }
       buf[bufix++]='\0';
       uint16_t word;
       if( !cmd_parse(buf,&word) ) {
-        Serial.print(F("ERROR: prog: .words: word ")); Serial.print(wordsix+1); Serial.println(F("must be 0000..FFFF")); 
+        Serial.print(F("ERROR: prog: .words: word ")); Serial.print(wordsix+1); Serial.println(F(" must be 0000..FFFF")); 
         goto free_lvl_fsx;      
       }
       if( wordsix==sizeof(words) ) {
@@ -505,8 +519,8 @@ free_lvl_fsx:
 // Either `label` or `operand` may be 0. `iix` is the instruction index (isa table)
 // Returns the parsed instruction line (or 0 on parse error)
 static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
-  char opbuf[16]; // "(<12345678),X"
-  if( operand==0 ) opbuf[0]='\0'; else strcpy(opbuf,operand);
+  char opbuf[16]; // "(<12345678),Y"
+  if( operand==0 ) opbuf[0]='\0'; else strncpy(opbuf,operand,sizeof(opbuf));
   
   // Label
   if( ln_isreserved(label) ) {
@@ -522,13 +536,13 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
 
   // Addressing mode and opcode
   uint8_t flags= 0;
-  int aix= isa_parse(opbuf); // Note: this isolates the actual operand chars in `opbuf`
+  int aix= isa_parse(opbuf); // This removes "addressing chars",and leaves the actual operand chars in `opbuf`
   if( aix==0 ) {
     Serial.println(F("ERROR: prog: unknown addressing mode syntax")); 
     goto free_lvl_fsx;      
   }
   if( aix==ISA_AIX_ABS && isa_instruction_opcodes(iix,ISA_AIX_REL)!=ISA_OPCODE_INVALID ) {
-    // The syntax is ABS, but the instruction has REL, accept
+    // The syntax is ABS, but the instruction has REL, accept (allows "BEQ loop", next to "BEQ +03")
     flags|= LN_FLAG_ABSforREL;
     aix= ISA_AIX_REL;
   }
@@ -544,8 +558,8 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
   if( opbuf[0]=='\0' ) {
     // No argument
   } else if( cmd_parse(opbuf,&op) ) {
-    // `flags` should _not_ have LN_FLAG_SYM
-    // `op` is the operand 
+    // `op` is the operand (a number) parsed from `opbuf` 
+    // `flags` should _not_ have LN_FLAG_OPisLBL
   } else {
     // not a hex number, so maybe a label
     if( !ln_islabel(opbuf) ) {
@@ -553,10 +567,11 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
       goto free_lvl_fsx;        
     }
     if( ln_isreserved(opbuf) ) {
-      Serial.println(F("ERROR: prog: operand uses reserved word (or hex lookalike)")); 
+      Serial.println(F("ERROR: prog: operand uses reserved word")); 
       goto free_lvl_fsx;        
     }
-    flags |= LN_FLAG_SYM;
+    // This is a label, `op` is the label index in the string store. Set the SYM flag
+    flags |= LN_FLAG_OPisLBL;
     op= fs_add(opbuf); 
     if( op==0 ) {
       Serial.println(F("ERROR: prog: out of string memory for operand")); 
@@ -578,7 +593,10 @@ free_lvl_fsx:
   return 0;  
 }
 
+// Parses an input line into ln_t. Returns 0 on failure.
+// Note, uses a static buffer for ln_t, so only one call at a time.
 static ln_t * ln_parse(int argc, char* argv[]) {
+  // Analyze the argv pattern, guess the line type and call the parse for the line type
   if( argc==0 ) { 
     Serial.println(F("ERROR: prog: empty line")); 
     return 0; 
@@ -586,6 +604,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
   // ; comment
   // LABEL .PRAGMA OPERAND
   //       .PRAGMA OPERAND
+  // LABEL .PRAGMA            (does not exist right now)
   //       .PRAGMA            (does not exist right now)
   // LABEL OPC OPERAND  
   //       OPC OPERAND  
@@ -599,6 +618,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
   }
   // LABEL .PRAGMA OPERAND
   //       .PRAGMA OPERAND
+  // LABEL .PRAGMA            (does not exist right now)
   //       .PRAGMA            (does not exist right now)
   // LABEL OPC OPERAND  
   //       OPC OPERAND  
@@ -615,6 +635,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
   }
   // LABEL .PRAGMA OPERAND
   //       .PRAGMA OPERAND
+  // LABEL .PRAGMA            (does not exist right now)
   // LABEL OPC OPERAND  
   //       OPC OPERAND  
   // LABEL OPC
@@ -645,6 +666,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
   return 0;
 }
 
+// Frees all "fixed strings" owned by the line `ln`.
 void ln_del(ln_t * ln) {
   // Serial.print("ln_del "); Serial.println(ln-&ln_store[0]);
   switch( ln->tag ) {
@@ -670,16 +692,19 @@ void ln_del(ln_t * ln) {
     return;
   case LN_TAG_INST          : 
     fs_del(ln->inst.lbl_fsx); 
-    if( ln->inst.flags & LN_FLAG_SYM ) fs_del(ln->inst.op); 
+    if( ln->inst.flags & LN_FLAG_OPisLBL ) fs_del(ln->inst.op); 
     return;
   }
   Serial.print(F("ERROR: prog: delete: internal error (tag ")); Serial.print(ln->tag); Serial.println(')');
 }
 
 
-// Printing of lines =============================================================================
+// ==========================================================================
+// Lines (printing)
+// ==========================================================================
 
-
+// Prints the line `ln` (which must be of type comment) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_comment(char*str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_COMMENT );
   int res, len=0;
@@ -693,6 +718,8 @@ static int ln_snprint_comment(char*str, int size, ln_t * ln) {
   return len;
 }
 
+// Prints the line `ln` (which must be of type .org) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_org(char * str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_PRAGMA_ORG );
   int res, len=0; 
@@ -703,6 +730,8 @@ static int ln_snprint_org(char * str, int size, ln_t * ln) {
   return len;
 }
 
+// Prints the line `ln` (which must be of type .bytes) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_bytes(char * str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_PRAGMA_BYTES );
   int res, len=0; 
@@ -712,15 +741,17 @@ static int ln_snprint_bytes(char * str, int size, ln_t * ln) {
   res=snprintf(str, size, " .BYTES"); str+=res; size-=res; len+=res;
   // Print bytes
   uint8_t bytes[FS_SIZE];
-  int num= fs_get_raw(ln->bytes.bytes_fsx,bytes);
+  uint8_t num= fs_get_raw(ln->bytes.bytes_fsx,bytes);
   char c=' ';
-  for( int i=0; i<num; i++) { 
+  for( uint8_t i=0; i<num; i++) { 
     res=snprintf(str, size, "%c%02x", c, bytes[i]); str+=res; size-=res; len+=res;
     c=','; 
   }
   return len;
 }
 
+// Prints the line `ln` (which must be of type .words) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_words(char * str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_PRAGMA_WORDS );
   int res, len=0; 
@@ -730,15 +761,17 @@ static int ln_snprint_words(char * str, int size, ln_t * ln) {
   res=snprintf(str, size, " .WORDS"); str+=res; size-=res; len+=res;
   // Print words
   uint16_t words[FS_SIZE/2];
-  int num= fs_get_raw(ln->words.words_fsx,(uint8_t*)words);
+  uint8_t num= fs_get_raw(ln->words.words_fsx,(uint8_t*)words);
   char c=' ';
-  for( int i=0; i<num/2; i++) { 
+  for( uint8_t i=0; i<num/2; i++) { 
     res=snprintf(str, size, "%c%04x", c, words[i]); str+=res; size-=res; len+=res;
     c=','; 
   }
   return len;
 }
 
+// Prints the line `ln` (which must be of type .eqbyte) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_eqbyte(char * str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_PRAGMA_EQBYTE );
   int res, len=0; 
@@ -749,6 +782,8 @@ static int ln_snprint_eqbyte(char * str, int size, ln_t * ln) {
   return len;
 }
 
+// Prints the line `ln` (which must be of type .eqword) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_eqword(char * str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_PRAGMA_EQWORD );
   int res, len=0; 
@@ -759,6 +794,8 @@ static int ln_snprint_eqword(char * str, int size, ln_t * ln) {
   return len;
 }
 
+// Prints the line `ln` (which must be of type instruction) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_inst(char * str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_INST );
   int res, len=0; 
@@ -772,7 +809,7 @@ static int ln_snprint_inst(char * str, int size, ln_t * ln) {
   if( ln->inst.flags & LN_FLAG_ABSforREL ) aix= ISA_AIX_ABS;
   uint8_t bytes= isa_addrmode_bytes(aix);
   char opbuf[FS_SIZE+1]; // a label, or byte or word
-  if( ln->inst.flags & LN_FLAG_SYM ) fs_snprint(opbuf,FS_SIZE+1,0,ln->inst.op); // op is an fsx
+  if( ln->inst.flags & LN_FLAG_OPisLBL ) fs_snprint(opbuf,FS_SIZE+1,0,ln->inst.op); // op is an fsx
   else if( bytes==1 ) opbuf[0]='\0';
   else if( bytes==2 ) snprintf(opbuf,FS_SIZE+1,"%02x",ln->inst.op); // op is a byte
   else if( bytes==3 ) snprintf(opbuf,FS_SIZE+1,"%04x",ln->inst.op); // op is a word
@@ -781,6 +818,8 @@ static int ln_snprint_inst(char * str, int size, ln_t * ln) {
   return len;
 }
 
+// Prints the line `ln` (any type) to the buffer `str`, which has size `size`.
+// Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint(char * str, int size, ln_t * ln) {
   switch( ln->tag ) {
   case LN_TAG_COMMENT       : return ln_snprint_comment(str,size,ln);
@@ -795,53 +834,132 @@ static int ln_snprint(char * str, int size, ln_t * ln) {
 }
 
 
-// Compiling =====================================================================================
+// ==========================================================================
+// Compiling (data)
+// ==========================================================================
 
-// Stores compile info on a line
+// Stores compile info on a line (only the address at the moment)
 typedef struct comp_ln_s {
   uint16_t addr;
 } comp_ln_t;
+
 // Stores compile info on a fixed string
-#define COMP_FLAGS_FSUSE   1 // When fixed string is a "using occurrence" (right hand side label)
-#define COMP_FLAGS_FSDEF   2 // When fixed string is a "defining occurrence" (left hand side label)
-#define COMP_FLAGS_FSOTHER 4 // When fixed string is a other (comment, bytes, words)
-#define COMP_FLAGS_REFD    8 // When defining occurrence is referenced (there is a using occurrence)
-#define COMP_FLAGS_BYTE   16 // When defining occurrence is a byte
+#define COMP_FLAGS_FSUSE     1 // When fixed string is a "using occurrence" (right hand side label)
+#define COMP_FLAGS_FSDEF     2 // When fixed string is a "defining occurrence" (left hand side label)
+#define COMP_FLAGS_FSOTHER   4 // When fixed string is a other (comment, bytes, words)
+#define COMP_FLAGS_TYPEBYTE  8 // When occurrence is a byte
+#define COMP_FLAGS_TYPEWORD 16 // When occurrence is a word
+#define COMP_FLAGS_REFD     32 // Only for FSDEFs: When there is a using occurrence (FSUSE)
 typedef struct comp_fs_s {
-  uint8_t  flags; // from the above COMP_FLAGS_XXX
-  uint16_t val;   // for an FSDEF the value (the address, or the [eq]byte or [eq]word)
-  uint8_t  first; // computed in second pass
+  uint16_t val;  // for an FSDEF the value (the address, or the [eq]byte or [eq]word)
+  uint8_t  flags;// from the above COMP_FLAGS_XXX
+  uint8_t  defx; // index of the (first) definition
+  uint16_t lix;  // Line number owning this string
 } comp_fs_t;
+
 // Stores compile info on entire program
 typedef struct comp_s {
-  comp_ln_t ln[LN_NUM+1]; // for end address
+  comp_ln_t ln[LN_NUM]; 
   comp_fs_t fs[FS_NUM];
   bool reset_vector_present; // if false, poke 0200 at fffc/fffd
 } PACKED comp_t ;
 
 static comp_t comp_result;
 
-static bool comp_compile( void ) {
-  int warnings=0;
-  int errors=0;
+
+// ==========================================================================
+// Compiling (result)
+// ==========================================================================
+// After compiling, the following functions return the compiled code on a line basis
+
+// After compiling: returns the address of a line
+static uint16_t comp_get_addr(uint16_t lix) {
+  if( lix>=ln_num ) { Serial.print(F("ERROR: prog: internal error (line index ")); Serial.print(lix); Serial.println(')'); return 0; }
+  return comp_result.ln[lix].addr;
+}
+
+// (*) This is a hack, especially for .bytes or .words. 
+// It is mandatory to always first call comp_get_numbytes(), which fills the below two globals.
+// Only then comp_get_byte() may be called, which uses these globals
+static uint8_t comp_numbytes;
+static uint8_t comp_fs_buf[FS_SIZE];
+
+// After compiling, returns the number of bytes generated for line number `lix`
+// If 0 is returned, the line does not generate code.
+// if >0 is returned, use comp_get_byte(lix,bix) with nix=[0..comp_get_numbytes)
+// to get all code bytes.
+static uint8_t comp_get_numbytes(uint16_t lix) {
+  ln_t * ln= &ln_store[lix]; 
+  switch( ln->tag ) {
+  case LN_TAG_COMMENT       : comp_numbytes=0; break; // only a comment, no code
+  case LN_TAG_PRAGMA_ORG    : comp_numbytes=0; break; // only a pragma to define address, no code
+  case LN_TAG_PRAGMA_BYTES  : comp_numbytes=fs_get_raw(ln->bytes.bytes_fsx,comp_fs_buf); break; // HACK (*)
+  case LN_TAG_PRAGMA_WORDS  : comp_numbytes=fs_get_raw(ln->bytes.bytes_fsx,comp_fs_buf); break; // HACK (*)
+  case LN_TAG_PRAGMA_EQBYTE : comp_numbytes=0; break; // only defines a label to be a byte
+  case LN_TAG_PRAGMA_EQWORD : comp_numbytes=0; break; // only defines a label to be a word
+  case LN_TAG_INST          : comp_numbytes= isa_addrmode_bytes(isa_opcode_aix(ln->inst.opcode)); break;
+  default                   : Serial.print(F("ERROR: prog: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
+  }
+  return comp_numbytes;
+}
+  
+// After compiling, returns byte `bix` for line number `lix`
+static uint8_t comp_get_byte(uint16_t lix, uint8_t bix) {
+  if( bix>=comp_numbytes ) { Serial.print(F("ERROR: prog: internal error (byte index ")); Serial.print(bix); Serial.println(')'); return 0; }
+  ln_t * ln= &ln_store[lix]; 
+  uint8_t b;
+  switch( ln->tag ) {
+    default                   : b=0; Serial.print(F("ERROR: prog: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
+    case LN_TAG_PRAGMA_BYTES  : b= comp_fs_buf[bix]; break; // HACK (*)
+    case LN_TAG_PRAGMA_WORDS  : b= comp_fs_buf[bix]; break; // HACK (*)
+    case LN_TAG_INST          : {
+      // Does op contain the real opcode or a label
+      uint16_t val = ( ln->inst.flags & LN_FLAG_OPisLBL ) ? comp_result.fs[comp_result.fs[ln->inst.op].defx].val : ln->inst.op ;
+      if( ln->inst.flags & LN_FLAG_ABSforREL ) val = val-(2+comp_get_addr(lix)); // todo: check overflow
+      switch( bix ) {
+        case 0 : { b= ln->inst.opcode; break; }  
+        case 1 : { b= (val>>0) & 0xFF; break; }
+        case 2 : { b= (val>>8) & 0xFF; break; }
+        default: { Serial.print(F("ERROR: prog: internal error (byte index ")); Serial.print(bix); Serial.println(')'); b= 0; break; }  
+      }
+      break;
+    };
+  }
+  return b;
+}
+
+// ==========================================================================
+// Compiling (the translator)
+// ==========================================================================
+
+
+// Pass one of the compiler: collect all addresses comp_result.ln[x].addr), and labels (comp_result.fs[x])
+static void comp_compile_pass1( int * errors, int * warnings ) {
   bool found_org= false;
   bool found_fffc= false; 
   bool found_fffd= false; 
   uint16_t addr=0x200;
   for( uint16_t lix=0; lix<ln_num; lix++ ) {
     ln_t * ln= &ln_store[lix]; 
-    if( ln->tag==LN_TAG_COMMENT ) { 
+    if( ln->tag==LN_TAG_COMMENT ) {
+      for( uint8_t i=0; i<sizeof(ln->cmt.cmt_fsxs); i++ ) {
+        uint8_t fsx= ln->cmt.cmt_fsxs[i];
+        comp_fs_t * cfs= &comp_result.fs[fsx];
+        cfs->flags= COMP_FLAGS_FSOTHER;
+        cfs->lix= lix;
+      }
       continue;
     }
     if( ln->tag==LN_TAG_PRAGMA_EQBYTE ) {
       uint8_t lbl= ln->eqbyte.lbl_fsx;
       if( lbl==0 ) {
         Serial.println(F("ERROR: prog: compile: label missing for .EQBYTE")); 
-        warnings++;
+        (*warnings)++;
       } else {
         comp_fs_t * cfs= &comp_result.fs[lbl];
-        cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_BYTE;
+        cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEBYTE;
         cfs->val= ln->eqbyte.byte;
+        cfs->lix= lix;
       }
       continue;
     }
@@ -849,11 +967,12 @@ static bool comp_compile( void ) {
       uint8_t lbl= ln->eqword.lbl_fsx;
       if( lbl==0 ) {
         Serial.println(F("ERROR: prog: compile: label missing for .EQWORD")); 
-        warnings++;
+        (*warnings)++;
       } else {
         comp_fs_t * cfs= &comp_result.fs[lbl];
-        cfs->flags= COMP_FLAGS_FSDEF;
+        cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD;
         cfs->val= ln->eqword.word;
+        cfs->lix= lix;
       }
       continue;
     }
@@ -865,16 +984,21 @@ static bool comp_compile( void ) {
     if( ! found_org ) {
       Serial.println(F("WARNING: prog: compile: no .ORG, assuming 0x200")); 
       found_org= true; // We "found"it, using the default
-      warnings++;
+      (*warnings)++;
     }
     if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
       uint8_t lbl= ln->bytes.lbl_fsx;
-      if( lbl==0 ) {
-        // skip
-      } else {
+      if( lbl!=0 ) {
         comp_fs_t * cfs= &comp_result.fs[lbl];
-        cfs->flags= COMP_FLAGS_FSDEF;
+        cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD; // Word, because the label is the address of the bytes
         cfs->val= addr;
+        cfs->lix= lix;
+      }
+      uint8_t fsx= ln->bytes.bytes_fsx;
+      if( fsx!=0 ) {
+        comp_fs_t * cfs= &comp_result.fs[fsx];
+        cfs->flags= COMP_FLAGS_FSOTHER;
+        cfs->lix= lix;
       }
       comp_result.ln[lix].addr= addr;
       addr+= fs_get_raw(ln->bytes.bytes_fsx, 0);
@@ -882,119 +1006,211 @@ static bool comp_compile( void ) {
     } 
     if( ln->tag==LN_TAG_PRAGMA_WORDS ) { 
       uint8_t lbl= ln->words.lbl_fsx;
-      if( lbl==0 ) {
-        // skip
-      } else {
+      if( lbl!=0 ) {
         comp_fs_t * cfs= &comp_result.fs[lbl];
-        cfs->flags= COMP_FLAGS_FSDEF;
+        cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD; // Word, because the label is the address of the words
         cfs->val= addr;
+        cfs->lix= lix;
+      }
+      uint8_t fsx= ln->words.words_fsx;
+      if( fsx!=0 ) {
+        comp_fs_t * cfs= &comp_result.fs[fsx];
+        cfs->flags= COMP_FLAGS_FSOTHER;
+        cfs->lix= lix;
       }
       comp_result.ln[lix].addr= addr;
       addr+= fs_get_raw(ln->words.words_fsx, 0);
       continue;
     } 
+    if( ln->tag != LN_TAG_INST ) { 
+      Serial.println(F("ERROR: prog: compile: internal error (tag)")); 
+      (*errors)++;
+      return;
+    }
     // Does inst have a label
     uint8_t lbl= ln->inst.lbl_fsx;
     if( lbl==0 ) {
       // skip
     } else {
       comp_fs_t * cfs= &comp_result.fs[lbl];
-      cfs->flags= COMP_FLAGS_FSDEF;
+      cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD; // Word, because the label is the address of the instruction
       cfs->val= addr;
+      cfs->lix= lix;
     }
     // Get instruction size
     uint8_t opcode= ln->inst.opcode;
     uint8_t aix= isa_opcode_aix(opcode);
     uint8_t bytes= isa_addrmode_bytes(aix);
     comp_result.ln[lix].addr= addr;
-    if( addr<=0xfffc && 0xfffc<addr+bytes) found_fffc= true; // todo: does not work for .WORDS/.BYTES
-    if( addr<=0xfffd && 0xfffd<addr+bytes) found_fffd= true; // todo: does not work for .WORDS/.BYTES
     addr+= bytes;
+    // Administrate label in operand
+    if( ln->inst.flags & LN_FLAG_OPisLBL ) {
+      uint8_t lbl= ln->inst.op;
+      comp_fs_t * cfs= &comp_result.fs[lbl];
+      switch(aix) {
+      case ISA_AIX_ABS :
+      case ISA_AIX_ABX :
+      case ISA_AIX_ABY :
+      case ISA_AIX_IND :
+        cfs->flags= COMP_FLAGS_FSUSE | COMP_FLAGS_TYPEWORD; // Word, because the addressing mode uses an address
+        cfs->lix= lix;
+        break;         
+      case ISA_AIX_IMM :
+      case ISA_AIX_REL :
+      case ISA_AIX_ZIX :
+      case ISA_AIX_ZIY :
+      case ISA_AIX_ZPG :
+      case ISA_AIX_ZPX :
+      case ISA_AIX_ZPY :
+        if( ln->inst.flags & LN_FLAG_ABSforREL ) 
+          cfs->flags= COMP_FLAGS_FSUSE | COMP_FLAGS_TYPEWORD; // Word, because the instruction is REL but ABS syntax is used
+        else 
+          cfs->flags= COMP_FLAGS_FSUSE | COMP_FLAGS_TYPEBYTE; // Word, because the addressing mode uses an byte value
+        cfs->lix= lix;
+        break;         
+      case ISA_AIX_ACC :
+      case ISA_AIX_IMP :
+        // skip
+        break;
+      case ISA_AIX_0Ea :
+      default :
+        Serial.println(F("ERROR: prog: compile: internal error (tag)")); 
+        (*errors)++;
+        return;
+      }      
+    }
   }
-  comp_result.ln[ln_num].addr= addr;
   comp_result.reset_vector_present= found_fffc && found_fffd;
-  if( !comp_result.reset_vector_present ) { Serial.println(F("WARNING: prog: compile: reset vector missing (FFFC and/or FFFD), assuming 0200")); warnings++; }
+  if( !comp_result.reset_vector_present ) { Serial.println(F("WARNING: prog: compile: reset vector missing (FFFC and/or FFFD), assuming 0200")); (*warnings)++; }
+}
+
+// Pass two of the compiler: link labels
+static void comp_compile_pass2( int * errors, int * warnings ) {
+  // Cross ref the defs and uses  
+  for( int fsx1=1; fsx1<FS_NUM; fsx1++) if( fs_store[fsx1][0]!='\0' ) {
+    comp_fs_t * cfs= &comp_result.fs[fsx1];
+    cfs->defx= 0;
+    if( cfs->flags & COMP_FLAGS_FSOTHER ) continue;
+    // for FSDEF and FSUSE, find first def
+    for( int fsx2=1; fsx2<FS_NUM; fsx2++) if( fs_store[fsx2][0]!='\0' ) {
+      if( fs_eq(fsx1,fsx2) ) {
+        if( comp_result.fs[fsx2].flags & COMP_FLAGS_FSDEF ) {
+          // Found first def, link to it. If links is from use, flag that
+          cfs->defx= fsx2;
+          if( cfs->flags & COMP_FLAGS_FSUSE ) comp_result.fs[fsx2].flags |= COMP_FLAGS_REFD;
+        }
+      }
+    }
+  }
+  // Check consistency
+  char buf[FS_SIZE+1];
+  for( int fsx=1; fsx<FS_NUM; fsx++) if( fs_store[fsx][0]!='\0' ) {
+    fs_snprint(buf,FS_SIZE+1,0,fsx);
+    comp_fs_t * cfs= &comp_result.fs[fsx];
+    if( cfs->flags & COMP_FLAGS_FSOTHER ) {
+      // skip
+    } else if( cfs->flags & COMP_FLAGS_FSUSE ) {
+      if( cfs->defx==0 ) { Serial.print(F("ERROR: prog: compile: no definition for \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.println(cfs->lix,HEX); (*errors)++; }
+      comp_fs_t * cfs2= &comp_result.fs[cfs->defx];
+      if( cfs->flags & COMP_FLAGS_TYPEBYTE ) {
+        if( ! (cfs2->flags & COMP_FLAGS_TYPEBYTE) ) { Serial.print(F("ERROR: prog: compile: \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" is used as byte but defined as word on line ")); Serial.println(cfs2->lix); (*errors)++; }
+      }
+      if( cfs->flags & COMP_FLAGS_TYPEWORD ) {
+        if( ! (cfs2->flags & COMP_FLAGS_TYPEWORD) ) { Serial.print(F("ERROR: prog: compile: \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" is used as word but defined as byte on line ")); Serial.println(cfs2->lix); (*errors)++; }
+      }
+    } else if( cfs->flags & COMP_FLAGS_FSDEF ) {
+      comp_fs_t * cfs2= &comp_result.fs[cfs->defx];
+      if( cfs->defx!=fsx ) { Serial.print(F("ERROR: prog: compile: double definition for \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" and ")); Serial.println(cfs2->lix,HEX);  (*errors)++; }
+      if( !( cfs->flags & COMP_FLAGS_REFD ) )  { Serial.print(F("WARNING: prog: compile: no usage of \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.println(cfs->lix,HEX);  (*warnings)++; }
+    }
+  }
+}
+
+static void comp_dump( void ) {
+  for( int fsx=1; fsx<FS_NUM; fsx++) {
+    if( fs_store[fsx][0]=='\0' ) continue;
+    comp_fs_t * cfs= &comp_result.fs[fsx];
+    if( cfs->flags & COMP_FLAGS_FSOTHER ) continue;
+    Serial.print(fsx,HEX); Serial.print(F(". "));
+    uint8_t buf[FS_SIZE+1];
+    fs_snprint((char*)buf,FS_SIZE+1,0,fsx);
+    Serial.print('"'); Serial.print((char*)buf); Serial.print('"');
+    if( buf[0] & 0x80 ) { // Is this raw bytes instead of a string?
+      Serial.print('=');
+      char c='(';
+      int len= fs_get_raw(fsx,buf);
+      for( int i=0; i<len; i++) { Serial.print(c); Serial.print(buf[i],HEX); c=','; }
+      Serial.print(')');
+    }
+    Serial.print(' ');
+    if( cfs->flags & COMP_FLAGS_REFD    ) Serial.print('R'); else Serial.print('r');
+    if( cfs->flags & COMP_FLAGS_TYPEWORD) Serial.print('W'); else Serial.print('w');
+    if( cfs->flags & COMP_FLAGS_TYPEBYTE) Serial.print('B'); else Serial.print('b');
+    if( cfs->flags & COMP_FLAGS_FSOTHER ) Serial.print('O'); else Serial.print('o');
+    if( cfs->flags & COMP_FLAGS_FSDEF   ) Serial.print('D'); else Serial.print('d');
+    if( cfs->flags & COMP_FLAGS_FSUSE   ) Serial.print('U'); else Serial.print('u');
+    Serial.print(F(" (def1 "));
+    Serial.print(cfs->defx,HEX);
+    Serial.print(F(") (ln "));
+    Serial.print(cfs->lix,HEX);
+    Serial.print(F(") "));
+    Serial.print(cfs->val,HEX);
+    Serial.println();
+  }
+}
+
+static bool comp_compile( void ) {
+  int errors=0;
+  int warnings=0;
+  comp_compile_pass1(&errors,&warnings);
+  comp_compile_pass2(&errors,&warnings);
   Serial.print(F("INFO: errors ")); Serial.print(errors); Serial.print(F(", warnings ")); Serial.println(warnings); 
-  Serial.println(); 
   return errors==0;
 }
 
-
 static void comp_list( void ) {
   char buf[40]; 
-  uint8_t bytes[FS_SIZE];
-  int bix=0,len=0;
   for(uint16_t lix=0; lix<ln_num; lix++) {
     ln_t * ln= &ln_store[lix]; 
-    if( ln->tag==LN_TAG_COMMENT || ln->tag==LN_TAG_PRAGMA_ORG || ln->tag==LN_TAG_PRAGMA_EQBYTE || ln->tag==LN_TAG_PRAGMA_EQWORD ) { 
+    // Print address and code bytes
+    uint16_t addr= comp_get_addr(lix);
+    uint8_t bix=0; // num bytes already printed
+    uint8_t len= comp_get_numbytes(lix); // bytes to print
+    if( len==0 ) {    
       Serial.print(F("     |             ")); 
-    } else if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
-      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr); 
+    } else { 
+      snprintf(buf,40,"%04x | ",addr); 
       Serial.print(buf); 
-      len= fs_get_raw(ln->bytes.bytes_fsx,bytes);
-      bix=0; while( bix<len && bix<4 ) {
-        snprintf(buf,40,"%02x ",bytes[bix++]); 
+      while( bix<len && bix<4 ) {
+        snprintf(buf,40,"%02x ",comp_get_byte(lix,bix)); 
         Serial.print(buf); 
+        bix++;
       }
       for(int i=len; i<4; i++ ) Serial.print(F("   "));
-    } else if( ln->tag==LN_TAG_PRAGMA_WORDS ) { 
-      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr); 
-      Serial.print(buf); 
-      len= fs_get_raw(ln->words.words_fsx,bytes);
-      bix=0; while( bix<len && bix<4 ) {
-        snprintf(buf,40,"%02x ",bytes[bix++]); 
-        Serial.print(buf); 
-      }
-      for(int i=len; i<4; i++ ) Serial.print(F("   "));
-    } else {
-      // Print computed address
-      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr); 
-      Serial.print(buf); 
-      // Print opcode
-      uint8_t opcode= ln->inst.opcode;
-      snprintf(buf,40,"%02x ",opcode); Serial.print(buf); 
-      // Print operand(s)
-      uint8_t aix= isa_opcode_aix(opcode);
-      uint8_t bytes= isa_addrmode_bytes(aix);
-      if(      bytes==1 ) snprintf(buf,40,"         "); 
-      else if( bytes==2 ) snprintf(buf,40,"%02x       ",(ln->inst.op)&0xFF ); // todo: check op is a byte (when it is a symbol)
-      else if( bytes==3 ) snprintf(buf,40,"%02x %02x    ",(ln->inst.op)&0xFF, (ln->inst.op>>8)&0xFF ); // todo: op is a word (when it is a symbol)
-      Serial.print(buf); 
     }
     // Print linenum
     snprintf(buf,40,"| %03x ",lix);
     Serial.print(buf); 
     // Print source
     ln_snprint(buf,40,ln);
-    Serial.println(buf); 
-    // Special case: too many bytes in .BYTES or .WORDS, so we print a next line
-    if( ln->tag==LN_TAG_PRAGMA_BYTES && bix<len ) { 
-      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr+bix); 
+    Serial.println(buf); // END-OF_LINE
+    // Special case: too many bytes to print, so we print a next line
+    if( bix<len ) { 
+      snprintf(buf,40,"%04x | ",addr+bix); 
       Serial.print(buf); 
       while( bix<len ) {
-        snprintf(buf,40,"%02x ",bytes[bix++]); 
+        snprintf(buf,40,"%02x ",comp_get_byte(lix,bix)); 
         Serial.print(buf); 
+        bix++;
       }
       for(int i=len; i<8; i++ ) Serial.print(F("   "));
-      Serial.println(F("| more bytes")); 
+      Serial.println(F("| ...")); 
     } 
-    if( ln->tag==LN_TAG_PRAGMA_WORDS && bix<len ) { 
-      snprintf(buf,40,"%04x | ",comp_result.ln[lix].addr+bix); 
-      Serial.print(buf); 
-      while( bix<len ) {
-        snprintf(buf,40,"%02x ",bytes[bix++]); 
-        Serial.print(buf); 
-      }
-      for(int i=len; i<8; i++ ) Serial.print(F("   "));
-      Serial.println(F("| more words")); 
-    }    
   }
-  // The end address
-  snprintf(buf,40,"%04x |             | end\n",comp_result.ln[ln_num].addr); 
-  Serial.print(buf); 
   // Vector?
   if( !comp_result.reset_vector_present ) Serial.println(F("FFFC | 00 02       | implicit reset vector")); 
 }
+
 
 // Command handling ==============================================================================
 
@@ -1045,8 +1261,13 @@ static void cmdprog_delete(int argc, char * argv[]) {
   } else {
     Serial.println(F("ERROR: prog: delete: too many arguments")); return;
   }
+  // Delete `len` lines: num1..num2
   uint16_t len= num2-num1+1;
-  for( uint16_t i=num1; i<=num2; i++ ) { ln_del(&ln_store[i]); if( i+len<ln_num ) ln_store[i]= ln_store[i+len]; }
+  for( uint16_t i=num1; i<=num2; i++ ) ln_del(&ln_store[i]); 
+  // Move all remaining lines up
+  num2++;
+  while( num2<ln_num ) ln_store[num1++]= ln_store[num2++];
+  // Report
   ln_num-= len;
   Serial.print(F("deleted ")); Serial.print(len); Serial.println(F(" lines"));
 }
@@ -1105,7 +1326,8 @@ static void cmdprog_compile(int argc, char * argv[]) {
   (void)argc;
   (void)argv;
   bool ok=comp_compile();
-  if( ok ) comp_list();  
+  comp_dump(); 
+  if( ok ) { comp_list(); }
   // todo: list
   // todo: map
   // todo: install
@@ -1198,4 +1420,22 @@ void cmdprog_register(void) {
   fs_init();
   ln_init();
   cmd_register(cmdprog_main, PSTR("prog"), PSTR("edit and compile a program"), cmdprog_longhelp);
+  // todo: remove test
+  cmd_addstr("prog insert\n");
+  cmd_addstr("; hello all of you\n");
+  cmd_addstr("         .ORG 0200\n");
+  cmd_addstr("count    .EQBYTE 20\n");
+  cmd_addstr("vect     .EQWORD 0200\n");
+  cmd_addstr("         LDX #count\n");
+  cmd_addstr("loop     DEX\n");
+  cmd_addstr("         BNE loop\n");
+  cmd_addstr("         BNE +count\n");
+  cmd_addstr("         STA data1\n");
+  cmd_addstr("         JMP (data2)\n");
+  cmd_addstr("data1    .BYTES 01,02,03\n");
+  cmd_addstr("data2    .WORDS 1234,5678\n");
+  cmd_addstr("        BNE 301\n");
+  cmd_addstr("        BNE +17\n");
+  cmd_addstr("\n");
+  cmd_addstr("prog compile\n");  
 }

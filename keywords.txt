@@ -44,6 +44,7 @@ cmdread_register	KEYWORD2
 cmdwrite_register	KEYWORD2
 cmdasm_register	KEYWORD2
 cmddasm_register	KEYWORD2
+cmdprog_register	KEYWORD2
 
 
 ######################################
