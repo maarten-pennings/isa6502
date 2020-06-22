@@ -14,6 +14,8 @@
 // todo: all hex output in uppercase (so that labels can use lower case)
 // todo: check that two .ORGs do not overwrite each other
 // todo: ".WORDS label" does not work (introduce .VECTOR ?)
+// todo: 'on line xx' move to start of line 'ERROR: line xx:
+// todo: .BYTES->.IB, .WORDS->.IW, .EQBYTES->.DB, .EQWORDS->.DW 
 
 
 // ==========================================================================
@@ -172,7 +174,7 @@ static int fs_free(void) {
 static void fs_dump(void) {
   Serial.print(F("String store - ")); Serial.print(fs_free()); Serial.println(F(" slots free"));
   for( int fsx=0; fsx<FS_NUM; fsx++) {
-    Serial.print(fsx); Serial.print(F(". "));
+    Serial.print(fsx,HEX); Serial.print(F(". "));
     if( fsx==0 ) {
       Serial.println(F("reserved"));
     } else if( fs_store[fsx][0]=='\0' ) {
@@ -929,7 +931,7 @@ static uint8_t comp_get_byte(uint16_t lix, uint8_t bix) {
 }
 
 // ==========================================================================
-// Compiling (the translator)
+// Compiling (the translator itself)
 // ==========================================================================
 
 
@@ -1086,6 +1088,8 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
 
 // Pass two of the compiler: link labels
 static void comp_compile_pass2( int * errors, int * warnings ) {
+  (void)errors;
+  (void)warnings;
   // Cross ref the defs and uses  
   for( int fsx1=1; fsx1<FS_NUM; fsx1++) if( fs_store[fsx1][0]!='\0' ) {
     comp_fs_t * cfs= &comp_result.fs[fsx1];
@@ -1102,6 +1106,10 @@ static void comp_compile_pass2( int * errors, int * warnings ) {
       }
     }
   }
+}
+
+// Pass three of the compiler: check labels
+static void comp_compile_pass3( int * errors, int * warnings ) {
   // Check consistency
   char buf[FS_SIZE+1];
   for( int fsx=1; fsx<FS_NUM; fsx++) if( fs_store[fsx][0]!='\0' ) {
@@ -1126,12 +1134,58 @@ static void comp_compile_pass2( int * errors, int * warnings ) {
   }
 }
 
-static void comp_dump( void ) {
+// Pass four of the compiler: check lines
+static void comp_compile_pass4( int * errors, int * warnings ) {
+  for( uint16_t lix=0; lix<ln_num; lix++ ) {
+    ln_t * ln= &ln_store[lix]; 
+    if( ln->tag == LN_TAG_INST ) {
+      #define PAGE(a) (((a)>>8)&0xff)
+      uint8_t opcode= ln->inst.opcode;
+      uint8_t aix= isa_opcode_aix(opcode);
+      uint16_t op = ( ln->inst.flags & LN_FLAG_OPisLBL ) ? comp_result.fs[comp_result.fs[ln->inst.op].defx].val : ln->inst.op ;
+      if( aix==ISA_AIX_REL && ln->inst.flags & LN_FLAG_ABSforREL ) {
+        // check if the ABS address is in range of the REL
+        uint16_t src_addr = comp_get_addr(lix)+2; 
+        uint16_t dst_addr= op;
+        if( ((dst_addr>src_addr)&&(dst_addr-src_addr>0x7f)) || ((dst_addr<src_addr)&&(src_addr-dst_addr>0x80)) ) {
+          Serial.print(F("ERROR: prog: compile: branch to far on line ")); Serial.println(lix,HEX); (*errors)++;
+        } else {
+          if( PAGE(src_addr)!=PAGE(dst_addr) ) { Serial.print(F("WARNING: prog: compile: branch to other page on line ")); Serial.print(lix,HEX); Serial.println(F(" has one clock tick penalty")); (*warnings)++; }
+        } 
+      }
+      if( aix==ISA_AIX_REL && !(ln->inst.flags & LN_FLAG_ABSforREL) ) {
+        // check if REL is to a different page: warning for extra clock tick
+        uint16_t src_addr = comp_get_addr(lix)+2; 
+        uint16_t dst_addr = src_addr+(int8_t)op;
+        if( PAGE(src_addr)!=PAGE(dst_addr) ) { Serial.print(F("WARNING: prog: compile: branch to other page on line ")); Serial.print(lix,HEX); Serial.println(F(" has one clock tick penalty")); (*warnings)++; }
+      }      
+      if( aix==ISA_AIX_ABS && op<0x100 ) { Serial.print(F("WARNING: prog: compile: suggest ZPG instead of ABS on line ")); Serial.println(lix,HEX); (*warnings)++; }
+      if( aix==ISA_AIX_ABX && op<0x100 ) { Serial.print(F("WARNING: prog: compile: suggest ZPX instead of ABX on line ")); Serial.println(lix,HEX); (*warnings)++; }
+      if( aix==ISA_AIX_ABY && op<0x100 ) { Serial.print(F("WARNING: prog: compile: suggest ZPY instead of ABY on line ")); Serial.println(lix,HEX); (*warnings)++; }
+      // todo: There is a sentence in the original 6502 datasheet, footnote 1 on page 6, eg for LDA 'ADD 1 TO "N" IF PAGE BOUNDARY IS CROSSED' do not yet understand
+    }
+  }
+}
+
+static bool comp_compile( void ) {
+  int errors=0;
+  int warnings=0;
+  comp_compile_pass1(&errors,&warnings);
+  comp_compile_pass2(&errors,&warnings);
+  comp_compile_pass3(&errors,&warnings);
+  comp_compile_pass4(&errors,&warnings);
+  Serial.print(F("INFO: errors ")); Serial.print(errors); Serial.print(F(", warnings ")); Serial.println(warnings); 
+  return errors==0;
+}
+
+static void comp_map( void ) {
+  Serial.println(F("MAP: lbl id, line num, lbl, Refd//Word/Byte//Other/Def/Use, def lbl id, value")); 
   for( int fsx=1; fsx<FS_NUM; fsx++) {
     if( fs_store[fsx][0]=='\0' ) continue;
     comp_fs_t * cfs= &comp_result.fs[fsx];
     if( cfs->flags & COMP_FLAGS_FSOTHER ) continue;
     Serial.print(fsx,HEX); Serial.print(F(". "));
+    Serial.print(F("(ln ")); Serial.print(cfs->lix,HEX); Serial.print(F(") "));
     uint8_t buf[FS_SIZE+1];
     fs_snprint((char*)buf,FS_SIZE+1,0,fsx);
     Serial.print('"'); Serial.print((char*)buf); Serial.print('"');
@@ -1149,23 +1203,10 @@ static void comp_dump( void ) {
     if( cfs->flags & COMP_FLAGS_FSOTHER ) Serial.print('O'); else Serial.print('o');
     if( cfs->flags & COMP_FLAGS_FSDEF   ) Serial.print('D'); else Serial.print('d');
     if( cfs->flags & COMP_FLAGS_FSUSE   ) Serial.print('U'); else Serial.print('u');
-    Serial.print(F(" (def1 "));
-    Serial.print(cfs->defx,HEX);
-    Serial.print(F(") (ln "));
-    Serial.print(cfs->lix,HEX);
-    Serial.print(F(") "));
-    Serial.print(cfs->val,HEX);
+    Serial.print(F(" (def ")); Serial.print(cfs->defx,HEX); Serial.print(')');
+    if( cfs->flags & COMP_FLAGS_FSDEF   ) { Serial.print(F(" val ")); Serial.print(cfs->val,HEX); }
     Serial.println();
   }
-}
-
-static bool comp_compile( void ) {
-  int errors=0;
-  int warnings=0;
-  comp_compile_pass1(&errors,&warnings);
-  comp_compile_pass2(&errors,&warnings);
-  Serial.print(F("INFO: errors ")); Serial.print(errors); Serial.print(F(", warnings ")); Serial.println(warnings); 
-  return errors==0;
 }
 
 static void comp_list( void ) {
@@ -1211,6 +1252,9 @@ static void comp_list( void ) {
   if( !comp_result.reset_vector_present ) Serial.println(F("FFFC | 00 02       | implicit reset vector")); 
 }
 
+static void comp_install( void ) {
+  Serial.println("prog: comp: install: not yet implemented"); // todo: implement
+}
 
 // Command handling ==============================================================================
 
@@ -1323,14 +1367,21 @@ static void cmdprog_insert_stream(int argc, char * argv[]) {
 }
 
 static void cmdprog_compile(int argc, char * argv[]) {
-  (void)argc;
-  (void)argv;
+  // prog compile [ list | install | map ]
+  if( argc>3 ) { Serial.println(F("ERROR: prog: comp: too many arguments"));  return; }
+  int cmd= 0;
+  if( argc==3 ) {
+    if( cmd_isprefix(PSTR("map"),argv[2]) ) cmd=1;
+    else if( cmd_isprefix(PSTR("install"),argv[2]) ) cmd=2;
+    else if( cmd_isprefix(PSTR("list"),argv[2]) ) cmd=3;
+    else { Serial.println(F("ERROR: prog: unexpected arguments")); return; }
+  }
   bool ok=comp_compile();
-  comp_dump(); 
-  if( ok ) { comp_list(); }
-  // todo: list
-  // todo: map
-  // todo: install
+  if( cmd==0 ) { return; }
+  if( cmd==1 ) { comp_map(); return; }
+  if( !ok ) { return; } 
+  if( cmd==2 ) { comp_install(); return; }
+  if( cmd==3 ) { comp_list(); return; }
 }
 
 // The main command handler
@@ -1355,7 +1406,7 @@ static void cmdprog_main(int argc, char * argv[]) {
     if( !cmd_parse(argv[2],&linenum) ) { Serial.println(F("ERROR: prog: replace: expected hex <linenum>")); return; }    
     if( linenum>=ln_num ) { Serial.println(F("ERROR: prog: replace: <linenum> does not exist")); return; }
     ln_t * ln= ln_parse(argc-3, argv+3);
-    if( ln!=0 ) ln_store[linenum]= *ln; 
+    if( ln!=0 ) { ln_del(&ln_store[linenum]);  ln_store[linenum]= *ln; }
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("list"),argv[1]) ) { 
@@ -1371,7 +1422,7 @@ static void cmdprog_main(int argc, char * argv[]) {
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("compile"),argv[1]) ) { 
-    cmdprog_compile(argc-2,argv+2);
+    cmdprog_compile(argc,argv);
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("stat"),argv[1]) ) { 
@@ -1405,11 +1456,11 @@ const char cmdprog_longhelp[] PROGMEM =
   "- if <num2> is absent deletes only line <num1>\n"
   "- if both present, deletes lines <num1> upto <num2>\n"
   "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
-  "SYNTAX: prog compile [list | map | install]\n"
+  "SYNTAX: prog compile [ list | install | map ]\n"
   "- compiles the program; giving info\n"
   "- 'list' compiles and produces an instruction listing\n"
-  "- 'symbols' compiles and produces a map (label values)\n"
   "- 'install' compiles and writes to memory\n"
+  "- 'map' compiles and produces a table of labels\n"
   "SYNTAX: prog stat [strings]\n"
   "- shows the memory usage of the program (and optionally the string table)\n"
 ;
@@ -1424,18 +1475,14 @@ void cmdprog_register(void) {
   cmd_addstr("prog insert\n");
   cmd_addstr("; hello all of you\n");
   cmd_addstr("         .ORG 0200\n");
-  cmd_addstr("count    .EQBYTE 20\n");
-  cmd_addstr("vect     .EQWORD 0200\n");
+  cmd_addstr("count    .EQBYTE 05\n");
   cmd_addstr("         LDX #count\n");
-  cmd_addstr("loop     DEX\n");
+  cmd_addstr("loop     LDA data,x\n");
+  cmd_addstr("         STA 8000\n");
+  cmd_addstr("         DEX\n");
   cmd_addstr("         BNE loop\n");
-  cmd_addstr("         BNE +count\n");
-  cmd_addstr("         STA data1\n");
-  cmd_addstr("         JMP (data2)\n");
-  cmd_addstr("data1    .BYTES 01,02,03\n");
-  cmd_addstr("data2    .WORDS 1234,5678\n");
-  cmd_addstr("        BNE 301\n");
-  cmd_addstr("        BNE +17\n");
+  cmd_addstr("stop     JMP stop\n");
+  cmd_addstr("data     .BYTES 48,65,6C,6C,6F\n");
   cmd_addstr("\n");
   cmd_addstr("prog compile\n");  
 }
