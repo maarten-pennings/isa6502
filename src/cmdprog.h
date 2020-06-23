@@ -2,7 +2,15 @@
 #ifndef __CMDPROG_H__
 #define __CMDPROG_H__
 
-// Note cmd_register needs all strings to be PROGMEM strings. For the short string we do that inline with PSTR.
+
+// The context is expected to implement
+#include <stdint.h>
+extern uint8_t mem_read(uint16_t addr);
+extern void    mem_write(uint16_t addr, uint8_t data);
+
+
+// This module implements a command
 void cmdprog_register(void);
+
 
 #endif

@@ -5,6 +5,7 @@
 #include <string.h>
 #include "isa.h"
 #include "cmd.h"
+#include "cmdprog.h"
 
 
 // todo: all strings get F() - also in sprintf
@@ -16,7 +17,8 @@
 // todo: ".WORDS label" does not work (introduce .VECTOR ?)
 // todo: 'on line xx' move to start of line 'ERROR: line xx:
 // todo: .BYTES->.IB, .WORDS->.IW, .EQBYTES->.DB, .EQWORDS->.DW 
-
+// todo: have one global printf buf (or variadic macro)
+// todo: warning about segment overlap, with knowledge that we have 64x1k mirrors
 
 // ==========================================================================
 // Fixed length string
@@ -859,11 +861,21 @@ typedef struct comp_fs_s {
   uint16_t lix;  // Line number owning this string
 } comp_fs_t;
 
+// Stores compile info for each org section
+#define ORG_NUM 6
+typedef struct comp_org_s {
+  uint16_t addr1;
+  uint16_t addr2;
+  uint16_t lix;
+} comp_org_t;
+
 // Stores compile info on entire program
 typedef struct comp_s {
-  comp_ln_t ln[LN_NUM]; 
-  comp_fs_t fs[FS_NUM];
-  bool reset_vector_present; // if false, poke 0200 at fffc/fffd
+  comp_ln_t  ln[LN_NUM]; 
+  comp_fs_t  fs[FS_NUM];
+  comp_org_t org[ORG_NUM];
+  uint8_t    org_num;
+  bool       add_reset_vector; // if true, poke 0200 at fffc/fffd 
 } PACKED comp_t ;
 
 static comp_t comp_result;
@@ -937,10 +949,7 @@ static uint8_t comp_get_byte(uint16_t lix, uint8_t bix) {
 
 // Pass one of the compiler: collect all addresses comp_result.ln[x].addr), and labels (comp_result.fs[x])
 static void comp_compile_pass1( int * errors, int * warnings ) {
-  bool found_org= false;
-  bool found_fffc= false; 
-  bool found_fffd= false; 
-  uint16_t addr=0x200;
+  (void)errors;
   for( uint16_t lix=0; lix<ln_num; lix++ ) {
     ln_t * ln= &ln_store[lix]; 
     if( ln->tag==LN_TAG_COMMENT ) {
@@ -979,13 +988,20 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       continue;
     }
     if( ln->tag==LN_TAG_PRAGMA_ORG ) { 
-      found_org= true;
-      addr= ln->org.addr;
+      if( comp_result.org_num+1==ORG_NUM )  { 
+        Serial.println(F("ERROR: prog: compile: too many .ORGs")); 
+        (*errors)++; 
+      } else {
+        // start next org section
+        comp_result.org_num++;
+        comp_result.org[comp_result.org_num].addr1= ln->org.addr; 
+        comp_result.org[comp_result.org_num].addr2= comp_result.org[comp_result.org_num].addr1;
+        comp_result.org[comp_result.org_num].lix= lix;
+      }
       continue;
     } 
-    if( ! found_org ) {
-      Serial.println(F("WARNING: prog: compile: no .ORG, assuming 0x200")); 
-      found_org= true; // We "found"it, using the default
+    if( comp_result.org_num==0 && comp_result.org[0].addr1==comp_result.org[0].addr2 ) {
+      Serial.print(F("WARNING: prog: compile: no .ORG, assuming ")); Serial.println(comp_result.org[comp_result.org_num].addr1,HEX);
       (*warnings)++;
     }
     if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
@@ -993,7 +1009,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       if( lbl!=0 ) {
         comp_fs_t * cfs= &comp_result.fs[lbl];
         cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD; // Word, because the label is the address of the bytes
-        cfs->val= addr;
+        cfs->val= comp_result.org[comp_result.org_num].addr2;
         cfs->lix= lix;
       }
       uint8_t fsx= ln->bytes.bytes_fsx;
@@ -1002,8 +1018,8 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
         cfs->flags= COMP_FLAGS_FSOTHER;
         cfs->lix= lix;
       }
-      comp_result.ln[lix].addr= addr;
-      addr+= fs_get_raw(ln->bytes.bytes_fsx, 0);
+      comp_result.ln[lix].addr= comp_result.org[comp_result.org_num].addr2;
+      comp_result.org[comp_result.org_num].addr2+= fs_get_raw(ln->bytes.bytes_fsx, 0);
       continue;
     } 
     if( ln->tag==LN_TAG_PRAGMA_WORDS ) { 
@@ -1011,7 +1027,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       if( lbl!=0 ) {
         comp_fs_t * cfs= &comp_result.fs[lbl];
         cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD; // Word, because the label is the address of the words
-        cfs->val= addr;
+        cfs->val= comp_result.org[comp_result.org_num].addr2;
         cfs->lix= lix;
       }
       uint8_t fsx= ln->words.words_fsx;
@@ -1020,8 +1036,8 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
         cfs->flags= COMP_FLAGS_FSOTHER;
         cfs->lix= lix;
       }
-      comp_result.ln[lix].addr= addr;
-      addr+= fs_get_raw(ln->words.words_fsx, 0);
+      comp_result.ln[lix].addr= comp_result.org[comp_result.org_num].addr2;
+      comp_result.org[comp_result.org_num].addr2+= fs_get_raw(ln->words.words_fsx, 0);
       continue;
     } 
     if( ln->tag != LN_TAG_INST ) { 
@@ -1036,15 +1052,15 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
     } else {
       comp_fs_t * cfs= &comp_result.fs[lbl];
       cfs->flags= COMP_FLAGS_FSDEF | COMP_FLAGS_TYPEWORD; // Word, because the label is the address of the instruction
-      cfs->val= addr;
+      cfs->val= comp_result.org[comp_result.org_num].addr2;
       cfs->lix= lix;
     }
     // Get instruction size
     uint8_t opcode= ln->inst.opcode;
     uint8_t aix= isa_opcode_aix(opcode);
     uint8_t bytes= isa_addrmode_bytes(aix);
-    comp_result.ln[lix].addr= addr;
-    addr+= bytes;
+    comp_result.ln[lix].addr= comp_result.org[comp_result.org_num].addr2;
+    comp_result.org[comp_result.org_num].addr2+= bytes;
     // Administrate label in operand
     if( ln->inst.flags & LN_FLAG_OPisLBL ) {
       uint8_t lbl= ln->inst.op;
@@ -1082,8 +1098,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       }      
     }
   }
-  comp_result.reset_vector_present= found_fffc && found_fffd;
-  if( !comp_result.reset_vector_present ) { Serial.println(F("WARNING: prog: compile: reset vector missing (FFFC and/or FFFD), assuming 0200")); (*warnings)++; }
+  comp_result.org_num++; // no fix that it is not current but number of .org segments
 }
 
 // Pass two of the compiler: link labels
@@ -1167,24 +1182,62 @@ static void comp_compile_pass4( int * errors, int * warnings ) {
   }
 }
 
+// Pass five of the compiler: check (.org) sections
+static void comp_compile_pass5( int * errors, int * warnings ) {
+  bool found_fffc= false;
+  bool found_fffd= false;
+  for( uint8_t oix=0; oix<comp_result.org_num; oix++ ) {
+    if( comp_result.org[oix].addr1==comp_result.org[oix].addr2 ) {
+      // .org section is empty
+      if( oix==0 ) continue;
+      Serial.print(F("WARNING: prog: compile: .ORG section on line ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.println(F(" empty")); (*warnings)++;
+    } else {
+      // .org section oix is not empty, does it overlap with any other
+      for( uint8_t oix2=oix+1; oix2<comp_result.org_num; oix2++ ) if( comp_result.org[oix2].addr1!=comp_result.org[oix2].addr2 ) {
+        // .org section oix2 is also not empty, does oix overlap with it
+        bool a1= comp_result.org[oix2].addr1<=comp_result.org[oix].addr1 && comp_result.org[oix].addr1<comp_result.org[oix2].addr2;
+        bool a2= comp_result.org[oix2].addr1<=comp_result.org[oix].addr2-1 && comp_result.org[oix].addr2-1<comp_result.org[oix2].addr2;
+        if( a1 || a2 ) {
+          Serial.print(F("WARNING: prog: compile: .ORG section on line ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.print(F(" overlaps with the one on line ")); Serial.println(comp_result.org[oix2].lix,HEX); (*warnings)++;
+        }
+      }
+      // does it contain the reset vector?
+      found_fffc |= comp_result.org[oix].addr1<=0xfffc && 0xfffc<comp_result.org[oix].addr2;
+      found_fffd |= comp_result.org[oix].addr1<=0xfffd && 0xfffd<comp_result.org[oix].addr2;
+    }
+  }
+  if( ! found_fffc && ! found_fffd ) { Serial.println(F("WARNING: prog: compile: reset vector missing (FFFC and/or FFFD), assuming 0200")); (*warnings)++; }
+  else if( ! found_fffc || ! found_fffd ) { Serial.println(F("ERROR: prog: compile: reset vector corrupt")); (*errors)++; }
+  comp_result.add_reset_vector= ! found_fffc && ! found_fffd;
+}
+
 static bool comp_compile( void ) {
   int errors=0;
   int warnings=0;
+  // Create first (implicit) org section
+  comp_result.org_num=0; // during pass 1, num is the current org index (so it runs 1 behind)
+  comp_result.org[comp_result.org_num].addr1= 0x200; // default org
+  comp_result.org[comp_result.org_num].addr2= comp_result.org[comp_result.org_num].addr1;
+  comp_result.org[comp_result.org_num].lix= 0xffff; // not used, but should not trigger print in list
+  // Start the passes
   comp_compile_pass1(&errors,&warnings);
   comp_compile_pass2(&errors,&warnings);
   comp_compile_pass3(&errors,&warnings);
   comp_compile_pass4(&errors,&warnings);
+  comp_compile_pass5(&errors,&warnings);
   Serial.print(F("INFO: errors ")); Serial.print(errors); Serial.print(F(", warnings ")); Serial.println(warnings); 
   return errors==0;
 }
 
 static void comp_map( void ) {
-  Serial.println(F("MAP: lbl id, line num, lbl, Refd//Word/Byte//Other/Def/Use, def lbl id, value")); 
+  int count=0;
+  Serial.println();
+  Serial.println(F("map labels: lbl id, line num, lbl, Refd//Word/Byte//Other/Def/Use, def lbl id, value")); 
   for( int fsx=1; fsx<FS_NUM; fsx++) {
     if( fs_store[fsx][0]=='\0' ) continue;
     comp_fs_t * cfs= &comp_result.fs[fsx];
     if( cfs->flags & COMP_FLAGS_FSOTHER ) continue;
-    Serial.print(fsx,HEX); Serial.print(F(". "));
+    Serial.print(' '); Serial.print(fsx,HEX); Serial.print(F(". "));
     Serial.print(F("(ln ")); Serial.print(cfs->lix,HEX); Serial.print(F(") "));
     uint8_t buf[FS_SIZE+1];
     fs_snprint((char*)buf,FS_SIZE+1,0,fsx);
@@ -1206,12 +1259,33 @@ static void comp_map( void ) {
     Serial.print(F(" (def ")); Serial.print(cfs->defx,HEX); Serial.print(')');
     if( cfs->flags & COMP_FLAGS_FSDEF   ) { Serial.print(F(" val ")); Serial.print(cfs->val,HEX); }
     Serial.println();
+    count++;
+  }
+  if( count==0 ) Serial.println(f(" none"));
+  Serial.println();
+  Serial.println(F("map sections: section id, line num, start addr, end addr")); 
+  for( uint8_t oix=0; oix<comp_result.org_num; oix++ ) {
+    if( oix==0 && comp_result.org[oix].addr1==comp_result.org[oix].addr2 ) continue;
+    Serial.print(' '); Serial.print(oix,HEX); Serial.print(F(". "));
+    if( oix==0 ) {
+      Serial.print(F("(impl) ")); 
+    } else {
+      Serial.print(F("(ln ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.print(F(") "));
+    }
+    Serial.print(comp_result.org[oix].addr1,HEX); Serial.print('-');
+    Serial.print(comp_result.org[oix].addr2,HEX); Serial.println();
   }
 }
 
 static void comp_list( void ) {
+  uint8_t oix= 0;
   char buf[40]; 
+  Serial.println();
   for(uint16_t lix=0; lix<ln_num; lix++) {
+    if( oix+1<comp_result.org_num && comp_result.org[oix+1].lix==lix ) { // A new .ORG section
+      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf(buf,40,"%04x |             | section %x end\n",comp_result.org[oix].addr2, oix); Serial.print(buf); }
+      oix++;
+    }
     ln_t * ln= &ln_store[lix]; 
     // Print address and code bytes
     uint16_t addr= comp_get_addr(lix);
@@ -1245,18 +1319,67 @@ static void comp_list( void ) {
         bix++;
       }
       for(int i=len; i<8; i++ ) Serial.print(F("   "));
-      Serial.println(F("| ...")); 
+      Serial.println(F("| more bytes")); 
     } 
   }
+  // print final .ORG section end
+  snprintf(buf,40,"%04x |             | section %x end\n",comp_result.org[oix].addr2, oix); Serial.print(buf);
   // Vector?
-  if( !comp_result.reset_vector_present ) Serial.println(F("FFFC | 00 02       | implicit reset vector")); 
+  if( comp_result.add_reset_vector ) {
+    Serial.println(F("FFFC | 00 02       | implicit section with reset vector")); 
+    Serial.println(F("FFFD |             | section end")); 
+  }
+}
+
+static void comp_bin( void ) {
+  uint8_t oix= 0;
+  char buf[40]; 
+  int count= 0;
+  Serial.println();
+  for(uint16_t lix=0; lix<ln_num; lix++) {
+    if( oix+1<comp_result.org_num && comp_result.org[oix+1].lix==lix ) { // A new .ORG section
+    if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { Serial.println(); count=0;  }
+      oix++; 
+    }
+    uint8_t len= comp_get_numbytes(lix); 
+    if( len==0 ) continue;
+    uint16_t addr= comp_get_addr(lix);
+    for( uint8_t bix=0; bix<len; bix++ ) {
+      if( count==0 ) { snprintf(buf,40,"%04x:",addr);  Serial.print(buf); }
+      snprintf(buf,40," %02x",comp_get_byte(lix,bix)); 
+      Serial.print(buf); 
+      count= (count+1) % 16;
+      if( count==0 ) Serial.println();
+    }
+  }
+  if( count>0 ) Serial.println();
+  // Vector?
+  if( comp_result.add_reset_vector ) {
+    Serial.println(F("FFFC: 00 02")); 
+  }
 }
 
 static void comp_install( void ) {
-  Serial.println("prog: comp: install: not yet implemented"); // todo: implement
+  int count=0;
+  for(uint16_t lix=0; lix<ln_num; lix++) {
+    uint16_t addr= comp_get_addr(lix);
+    uint8_t len= comp_get_numbytes(lix);
+    for(uint8_t bix=0; bix<len; bix++ ) {
+      mem_write(addr+bix,comp_get_byte(lix,bix));
+      count++;
+    }
+  }
+  if( comp_result.add_reset_vector ) {
+    mem_write(0xFFFC,0x00);
+    mem_write(0xFFFD,0x02);
+    count+=2;
+  }
+  Serial.print(F("INFO: installed a program of ")); Serial.print(count); Serial.println(F(" bytes")); 
 }
 
-// Command handling ==============================================================================
+// ==========================================================================
+// Command handling
+// ==========================================================================
 
 
 static void cmdprog_list(int argc, char * argv[]) {
@@ -1293,6 +1416,7 @@ static void cmdprog_delete(int argc, char * argv[]) {
     Serial.println(F("ERROR: prog: delete: expected <num1> and <num2>")); return;
   } else if( argc==3 ) { 
     if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: delete: expected hex <num1>")); return; }
+    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: delete: <num1> too high")); return; }
     num2= num1;
   } else if( argc==4 ) {
     if( argv[2][0]=='-' && argv[2][1]=='\0' ) { num1=0; }
@@ -1374,6 +1498,7 @@ static void cmdprog_compile(int argc, char * argv[]) {
     if( cmd_isprefix(PSTR("map"),argv[2]) ) cmd=1;
     else if( cmd_isprefix(PSTR("install"),argv[2]) ) cmd=2;
     else if( cmd_isprefix(PSTR("list"),argv[2]) ) cmd=3;
+    else if( cmd_isprefix(PSTR("bin"),argv[2]) ) cmd=4;
     else { Serial.println(F("ERROR: prog: unexpected arguments")); return; }
   }
   bool ok=comp_compile();
@@ -1382,6 +1507,7 @@ static void cmdprog_compile(int argc, char * argv[]) {
   if( !ok ) { return; } 
   if( cmd==2 ) { comp_install(); return; }
   if( cmd==3 ) { comp_list(); return; }
+  if( cmd==4 ) { comp_bin(); return; }
 }
 
 // The main command handler
@@ -1456,11 +1582,12 @@ const char cmdprog_longhelp[] PROGMEM =
   "- if <num2> is absent deletes only line <num1>\n"
   "- if both present, deletes lines <num1> upto <num2>\n"
   "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
-  "SYNTAX: prog compile [ list | install | map ]\n"
+  "SYNTAX: prog compile [ list | install | map | bin ]\n"
   "- compiles the program; giving info\n"
   "- 'list' compiles and produces an instruction listing\n"
   "- 'install' compiles and writes to memory\n"
-  "- 'map' compiles and produces a table of labels\n"
+  "- 'map' compiles and produces a table of labels and sections\n"
+  "- 'bin' shows the generated binary\n"
   "SYNTAX: prog stat [strings]\n"
   "- shows the memory usage of the program (and optionally the string table)\n"
 ;
@@ -1482,7 +1609,10 @@ void cmdprog_register(void) {
   cmd_addstr("         DEX\n");
   cmd_addstr("         BNE loop\n");
   cmd_addstr("stop     JMP stop\n");
+  cmd_addstr("         .ORG 0300\n");
   cmd_addstr("data     .BYTES 48,65,6C,6C,6F\n");
+  cmd_addstr("         .ORG FFFC\n");
+  cmd_addstr("         .WORDS 0200\n");
   cmd_addstr("\n");
-  cmd_addstr("prog compile\n");  
+  cmd_addstr("prog compile list\n");  
 }

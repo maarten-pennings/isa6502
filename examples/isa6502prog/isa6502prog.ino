@@ -30,9 +30,9 @@ void setup() {
   cmdecho_register();
   cmdhelp_register();
   cmdman_register();
+  cmdprog_register();
   cmdread_register(); 
   cmdwrite_register();
-  cmdprog_register();
 }
 
 
