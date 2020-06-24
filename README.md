@@ -1,9 +1,12 @@
 # isa6502
-Arduino library with tables describing 6502 instructions
+Arduino library with tables describing 6502 instruction set architecture (ISA).
+
+The library includes commands (for a separate command interpreter) that implement a man page browser (for the instructions), 
+an in-line disassembler, and even a simple assembler.
 
 ## Introduction
 
-This library contains several table that store the 6502 instruction set.
+This library contains several tables that store the 6502 instruction set.
 See for example [this excellent work](https://www.masswerk.at/6502/6502_instruction_set.html).
 The following tables are available:
 
@@ -24,7 +27,7 @@ or 0x1000 in flash.
 Most of this is hidden in the library.
 Except for the return values of type `char *`.
 If you want to `print` those, embed them in the `f(...)` macro.
-If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_p`.
+If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_P`.
 See the [isa6502dump](#isa6502dump) example.
 
 For details on PROGMEM see [below](#progmem-details).
@@ -39,24 +42,27 @@ There are examples of increasing code size.
 There is a [basic example](examples/isa6502basic).
 It includes the 6502 tables from this library, and just prints them.
 
-Note that it shows how to print using `f()`:
+Note that this example shows how to deal with PROGMEM strings.
+For example, `f` typecasts the string, so that `print` knows to get the chars from PROGMEM.
 
 ```cpp
   Serial.print(  f(isa_addrmode_aname(aix)) ); 
 ```
 
-and how to compare a string from a table using an `_p()` variant:
+This is another example that shows how to deal with PROGMEM strings.
+There are `_P()` variants of many standard string functions.
+Those variants get the chars of the (second) string from PROGMEM.
 
 ```cpp
   char aname[4]; 
   strcpy_P( aname, isa_addrmode_aname(aix) );
 ```
 
-For details on PROGMEM (`f()` and `_p()`) see [below](#progmem-details).
+For details on PROGMEM (`f()` and `_P()`) see [below](#progmem-details).
 
 ### isa6502man
 
-The next example is an interactive variant.
+The [next example](examples/isa6502man) is an interactive variant.
 It uses my [command interpreter](https://github.com/maarten-pennings/cmd)
 to offer a `man` command, so that the user can query the 6502 tables.
 
@@ -138,7 +144,7 @@ found 8 results
 
 ### isa6502mem
 
-The third example is also based on my [command interpreter](https://github.com/maarten-pennings/cmd).
+The [third example](examples/isa6502mem) is also based on my [command interpreter](https://github.com/maarten-pennings/cmd).
 It uses several commands included in this library; not only `man` , but also `read` and `write`, and `dasm` and `asm`.
 
 Here a demo of a `write` that is `dasm`'ed.
@@ -224,7 +230,15 @@ Note
  - I quit the streaming mode at address 0211 by entering a blank line.
  - Then I gave twice the disassemble command (which knows the last written or shown address). This confirms the assembled code is correct.
  - Finally, a gave a read command (which also knows the last written address). 
- 
+
+
+### isa6502prog
+
+The [fourth example](examples/isa6502prog) is also based on my [command interpreter](https://github.com/maarten-pennings/cmd).
+It adds one commands included in this library `prog`.
+This command implements a simple assembler.
+
+
 ## PROGMEM details
 
 Recall that a pointer `char * p` with a value 0x1000 could address location 0x1000 in DATAMEM (RAM) or 0x1000 in PROGMEM (flash). 
