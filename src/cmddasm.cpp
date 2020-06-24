@@ -23,25 +23,23 @@ static void cmddasm_dasm( uint16_t addr, uint16_t num ) {
     uint8_t op1= mem_read(addr+1);
     uint8_t op2= mem_read(addr+2);
     // Prepare format
-    char opsB[7];
-    char opsT[5];
+    char opsB[7]; // binary rep (first 3 columns)
+    char opsT[5]; // text rep (last operand column)
     if(      bytes==1 ) { snprintf_P(opsB,sizeof opsB,PSTR("     "));             *opsT=0;                          }
-    else if( bytes==2 ) { snprintf_P(opsB,sizeof opsB,PSTR("%02x   "),op1);       snprintf_P(opsT,sizeof opsT,PSTR("%02x"),op1);         }
-    else if( bytes==3 ) { snprintf_P(opsB,sizeof opsB,PSTR("%02x %02x"),op1,op2); snprintf_P(opsT,sizeof opsT,PSTR("%02x%02x"),op2,op1); }
+    else if( bytes==2 ) { snprintf_P(opsB,sizeof opsB,PSTR("%02X   "),op1);       snprintf_P(opsT,sizeof opsT,PSTR("%02X"),op1);         }
+    else if( bytes==3 ) { snprintf_P(opsB,sizeof opsB,PSTR("%02X %02X"),op1,op2); snprintf_P(opsT,sizeof opsT,PSTR("%02X%02X"),op2,op1); }
     else { Serial.println(F("ERROR: dasm: this should not happen (bytes mismatch)")); return; }
-    // Print bytes
-    char buf[20]; // 4+1+2+1+5+1+1
-    snprintf_P(buf,sizeof buf,PSTR("%04x %02x %s "),addr,opcode,opsB); Serial.print(buf);
-    // Print text
+    // Print binary columns
+    cmd_printf_P( PSTR("%04X %02X %s "), addr, opcode, opsB); 
+    // Print text columns
     if( iix>0 ) {
-      Serial.print(f(isa_instruction_iname(iix))); 
+      char buf[10];
       isa_snprint_op(buf,sizeof buf, aix,opsT);
-      Serial.print(' ');
-      Serial.print(buf);
+      cmd_printf_P( PSTR("%S %s"), isa_instruction_iname(iix), buf );
       if( aix==ISA_AIX_REL ) {
         uint16_t target= addr+bytes+(int8_t)op1;
         // int otherpage= (addr>>8) != (target>>8);
-        snprintf_P(buf,sizeof buf,PSTR(" (%04x)"), target); Serial.print(buf);
+        cmd_printf_P( PSTR(" (%04X)"), target );
       }
     } else {
       Serial.print(F("---")); 
@@ -63,13 +61,13 @@ static void cmddasm_main( int argc, char * argv[] ) {
   if( argv[1][0]=='-' && argv[1][1]=='\0' ) 
     addr= cmddasm_addr;
   else 
-    if( !cmd_parse(argv[1],&addr) ) { Serial.println(F("ERROR: dasm: expected hex <addr>")); return; }
+    if( !cmd_parse(argv[1],&addr) ) { Serial.println(F("ERROR: expected hex <addr>")); return; }
   if( argc==2 ) { cmddasm_dasm(addr,CMDDASM_NUM); return; }
   // Parse num
   uint16_t num;
-  if( !cmd_parse(argv[2],&num) ) { Serial.println(F("ERROR: dasm: expected hex <num>")); return; }
+  if( !cmd_parse(argv[2],&num) ) { Serial.println(F("ERROR: expected hex <num>")); return; }
   if( argc==3 ) { cmddasm_dasm(addr,num); return; }
-  Serial.println(F("ERROR: dasm: too many arguments"));
+  Serial.println(F("ERROR: too many arguments"));
 }
 
 
