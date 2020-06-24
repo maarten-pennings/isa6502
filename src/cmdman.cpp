@@ -73,42 +73,42 @@ static void cmdman_printregs() {
   Serial.println( F("PCL - program counter low byte") ); 
   Serial.println( F("PCH - program counter high byte") ); 
   Serial.println( F("PSR - program status register") ); 
-  Serial.println( F("      N/7: 1=negative") ); 
-  Serial.println( F("      V/6: 1=overflow") ); 
+  Serial.println( F("      N/7: negative") ); 
+  Serial.println( F("      V/6: overflow") ); 
   Serial.println( F("      -/5:") ); 
-  Serial.println( F("      B/4: 1=BRK executed") ); 
-  Serial.println( F("      D/3: 1=decimal mode active") ); 
-  Serial.println( F("      I/2: 1=IRQ disabled") ); 
-  Serial.println( F("      Z/1: 1=zero") ); 
-  Serial.println( F("      C/0: 1=carry") ); 
+  Serial.println( F("      B/4: BRK executed") ); 
+  Serial.println( F("      D/3: decimal mode active") ); 
+  Serial.println( F("      I/2: IRQ disabled") ); 
+  Serial.println( F("      Z/1: zero") ); 
+  Serial.println( F("      C/0: carry") ); 
 }
 
 
 static void cmdman_printinstruction(int iix) {
-  Serial.print( F("name: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.println(F(" (instruction)"));  
-  Serial.print( F("desc: ") ); Serial.println( f(isa_instruction_desc(iix)) ); 
-  Serial.print( F("help: ") ); Serial.println( f(isa_instruction_help(iix)) );  
-  Serial.print( F("flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
-  Serial.print( F("addr: ") ); 
+  cmd_printf_P( PSTR("name: %S (instruction)\n"), isa_instruction_iname(iix) );  
+  cmd_printf_P( PSTR("desc: %S\n"), isa_instruction_desc(iix) ); 
+  cmd_printf_P( PSTR("help: %S\n"), isa_instruction_help(iix) );  
+  cmd_printf_P( PSTR("flag: %S\n"), isa_instruction_flags(iix) );  
+  cmd_printf_P( PSTR("addr: ") ); 
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     uint8_t opcode= isa_instruction_opcodes(iix,aix);
-    if( opcode!=ISA_OPCODE_INVALID ) { Serial.print(f(isa_addrmode_aname(aix))); Serial.print(' ');}
+    if( opcode!=ISA_OPCODE_INVALID ) cmd_printf_P( PSTR("%S "), isa_addrmode_aname(aix) );
   }
   Serial.println();
 }
 
 
 static void cmdman_printaddrmode(int aix) {
-  Serial.print( F("name: ") ); Serial.print( f(isa_addrmode_aname(aix)) ); Serial.println(F(" (addressing mode)"));  
-  Serial.print( F("desc: ") ); Serial.println( f(isa_addrmode_desc(aix)) );  
-  Serial.print( F("sntx: ") ); Serial.println( f(isa_addrmode_syntax(aix)) );  
-  Serial.print( F("size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));  
+  cmd_printf_P( PSTR("name: %S (addressing mode)\n"), isa_addrmode_aname(aix) );  
+  cmd_printf_P( PSTR("desc: %S\n"), isa_addrmode_desc(aix) );  
+  cmd_printf_P( PSTR("sntx: %S\n"), isa_addrmode_syntax(aix) );  
+  cmd_printf_P( PSTR("size: %d bytes\n"), isa_addrmode_bytes(aix) );
   int n=0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     uint8_t opcode= isa_instruction_opcodes(iix,aix);
     if( opcode!=ISA_OPCODE_INVALID ) { 
       if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("inst: "));
-      Serial.print(f(isa_instruction_iname(iix))); Serial.print(' ');
+      cmd_printf_P( PSTR("%S "), isa_instruction_iname(iix) );
       if( (n+1)%CMDMAN_NAMESPERLINE==0 ) Serial.println();
       n++;
     }
@@ -120,14 +120,13 @@ static void cmdman_printaddrmode(int aix) {
 static void cmdman_printopcode(uint8_t opcode) {
   uint8_t iix= isa_opcode_iix(opcode);
   uint8_t aix= isa_opcode_aix(opcode);
-  Serial.print( F("name: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.print('.'); Serial.print(f(isa_addrmode_aname(aix)) );
-  Serial.print( F(" (opcode ") ); if( opcode<16 ) Serial.print('0'); Serial.print(opcode,HEX); Serial.println(')');
-  Serial.print( F("sntx: ") ); Serial.print( f(isa_instruction_iname(iix)) ); Serial.println( f(isa_addrmode_syntax(aix)+3) );
-  Serial.print( F("desc: ") ); Serial.print( f(isa_instruction_desc(iix)) ); Serial.print(F(" - ")); Serial.println( f(isa_addrmode_desc(aix)) );
-  Serial.print( F("help: ") ); Serial.println( f(isa_instruction_help(iix)) );  
-  Serial.print( F("flag: ") ); Serial.println( f(isa_instruction_flags(iix)) );  
-  Serial.print( F("size: ") ); Serial.print( isa_addrmode_bytes(aix) ); Serial.println(F(" bytes"));
-  Serial.print( F("time: ") ); Serial.print(isa_opcode_cycles(opcode)); Serial.print(F(" ticks")); 
+  cmd_printf_P( PSTR("name: %S.%S (opcode %02X)\n"), isa_instruction_iname(iix), isa_addrmode_aname(aix), opcode );
+  cmd_printf_P( PSTR("sntx: %S%S\n"), isa_instruction_iname(iix), isa_addrmode_syntax(aix)+3 ); // +3 to skip OPC
+  cmd_printf_P( PSTR("desc: %S - %S\n"), isa_instruction_desc(iix), isa_addrmode_desc(aix) );
+  cmd_printf_P( PSTR("help: %S\n"), isa_instruction_help(iix) );  
+  cmd_printf_P( PSTR("flag: %S\n"), isa_instruction_flags(iix) );  
+  cmd_printf_P( PSTR("size: %d bytes\n"), isa_addrmode_bytes(aix) );
+  cmd_printf_P( PSTR("time: %d ticks"), isa_opcode_cycles(opcode) ); 
   if( isa_opcode_xcycles(opcode)==1 ) { 
     Serial.println(F(" (add 1 if page boundary is crossed)")); 
   } else if( isa_opcode_xcycles(opcode)==2 ) { 
@@ -145,17 +144,14 @@ static void cmdman_printfind(char * word) {
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     int p= cmdman_findmid( isa_instruction_desc(iix) , word );
     if( p>=0 ) {
-      Serial.print( f(isa_instruction_iname(iix))); 
-      Serial.print(F(" - "));
-      Serial.print( f(isa_instruction_desc(iix)) ); 
-      Serial.println();
+      cmd_printf_P( PSTR("%S - %S\n"), isa_instruction_iname(iix), isa_instruction_desc(iix) ); 
       n++;
     }
   }
   if( n==0 ) {
-    Serial.println( F("nothing found") ); 
+    cmd_printf_P( PSTR("nothing found\n") ); 
   } else {
-    Serial.print( F("found ") ); Serial.print(n); Serial.println( F(" results") ); 
+    cmd_printf_P( PSTR("found %d results\n"), n ); 
   }
 }
 
@@ -163,7 +159,7 @@ static void cmdman_printfind(char * word) {
 static void cmdman_printtable_opcode_line() {
   Serial.print(F("+--+"));
   for( int x=0; x<16; x++ ) {
-    Serial.print(F("---")); Serial.print('+');
+    Serial.print(F("---+")); 
   }
   Serial.println();
 }
@@ -171,12 +167,12 @@ static void cmdman_printtable_opcode() {
   cmdman_printtable_opcode_line();
   Serial.print(F("|  |"));
   for( int x=0; x<16; x++ ) {
-    Serial.print('0'); Serial.print(x,HEX); Serial.print(' '); Serial.print('|');
+    cmd_printf_P( PSTR("0%X |"), x);
   }
   Serial.println();
   for( int y=0; y<16; y++) {
     if( y%4==0 ) cmdman_printtable_opcode_line();
-    Serial.print('|'); Serial.print(y,HEX); Serial.print('0'); Serial.print('|');
+    cmd_printf_P( PSTR("|%X0|"), y);
     for( int x=0; x<16; x++ ) {
       int opcode=y*16+x;
       int iix= isa_opcode_iix(opcode);
@@ -200,7 +196,7 @@ static void cmdman_printtable_opcode() {
 static void cmdman_printtable_inst_line() {
   Serial.print(F("+---+"));
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
-    Serial.print(F("---")); Serial.print('+');
+    Serial.print(F("---+")); 
   }
   Serial.println();
 }
@@ -221,7 +217,7 @@ static void cmdman_printtable_inst(const char * pattern) {
     for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
       uint8_t opcode= isa_instruction_opcodes(iix,aix);
       if( opcode!=ISA_OPCODE_INVALID ) { 
-        Serial.print(' '); if( opcode<16 ) Serial.print('0'); Serial.print(opcode,HEX); 
+        cmd_printf_P( PSTR(" %02X"), opcode );
       } else Serial.print(F("   "));
       Serial.print('|');
     }
@@ -240,21 +236,21 @@ static void cmdman_main(int argc, char * argv[]) {
     return;
   }
   if( cmd_isprefix(PSTR("find"),argv[1]) ) { 
-    if( argc==2 ) { Serial.println(F("ERROR: man: find: need a search word")); return; }
+    if( argc==2 ) { Serial.println(F("ERROR: need a search word")); return; }
     if( argc==3 ) { cmdman_printfind(argv[2]); return; }
-    Serial.println(F("ERROR: man: find: only one search word allowed")); 
+    Serial.println(F("ERROR: only one search word allowed")); 
     return;
   }
   if( cmd_isprefix(PSTR("regs"),argv[1]) ) { 
     if( argc==2 ) { cmdman_printregs(); return; }
-    Serial.println(F("ERROR: man: regs: no arguments allowed")); 
+    Serial.println(F("ERROR: no arguments allowed")); 
     return;
   }
   if( cmd_isprefix(PSTR("table"),argv[1]) ) { 
     if( argc==3 && cmd_isprefix(PSTR("opcode"),argv[2]) ) { cmdman_printtable_opcode(); return; }
     if( argc==3 ) { cmdman_printtable_inst(argv[2]); return; }
     if( argc==2 ) { cmdman_printtable_inst("*"); return; }
-    Serial.println(F("ERROR: man: table: too many arguments")); 
+    Serial.println(F("ERROR: too many arguments")); 
     return;
   }
   if( argc==2 ) {
@@ -266,20 +262,20 @@ static void cmdman_main(int argc, char * argv[]) {
     uint16_t opcode;
     bool ok= cmd_parse(argv[1],&opcode);
     if( ok && opcode<=0xff) { cmdman_printopcode(opcode); return; }
-    Serial.println(F("ERROR: man: must have <inst>, <addrmode>, or <hexnum> in range 0..ff"));
+    Serial.println(F("ERROR: must have <inst>, <addrmode>, or <hexnum> in range 0..ff"));
     return;
   }
   if( argc==3 ) { 
     int iix= isa_instruction_find(argv[1]);
-    if( iix==0 ) { Serial.println(F("ERROR: man <inst> <addrmode>: <inst> does not exist")); return; }
+    if( iix==0 ) { Serial.println(F("ERROR: <inst> <addrmode>: <inst> does not exist")); return; }
     int aix= isa_addrmode_find(argv[2]);
-    if( aix==0 ) { Serial.println(F("ERROR: man <inst> <addrmode>: <addrmode> does not exist")); return; }
+    if( aix==0 ) { Serial.println(F("ERROR: <inst> <addrmode>: <addrmode> does not exist")); return; }
     uint8_t opcode= isa_instruction_opcodes(iix,aix ); 
     if( opcode!=ISA_OPCODE_INVALID ) { cmdman_printopcode(opcode); return; }
-    Serial.println(F("ERROR: man <inst> <addrmode>: <inst> does not have <addrmode>")); 
+    Serial.println(F("ERROR: <inst> <addrmode>: <inst> does not have <addrmode>")); 
     return; 
   }
-  Serial.println(F("ERROR: man: unexpected arguments")); 
+  Serial.println(F("ERROR: unexpected arguments")); 
 }
 
 
