@@ -244,49 +244,78 @@ This command implements a simple assembler.
 Recall that a pointer `char * p` with a value 0x1000 could address location 0x1000 in DATAMEM (RAM) or 0x1000 in PROGMEM (flash). 
 Technically the AVR has two different instructions for that, and the C compiler must generate those.
 An unqualified `*p` in C is always a RAM location. To read from flash we need a modifier like `pgm_read_byte(p)`. This inserts
-an `lpm` instruction (load from program memory).
+an `lpm` instruction (load from program memory) instead of `ld` (load from ram).
 
-The run-time library supports this; for many functions like `memcmp(p1,p2)` (where both p1 and p2 are in RAM) there is
+The run-time library supports PROGMEM; for many functions like `memcmp(p1,p2)` (where both p1 and p2 are in RAM) there is
 a variant `memcmp_P(p1,p2)` (where `p2` is in PROGMEM).
 
-A special case is a string. If a string is in PROGMEM, all its characters have an address in PROGMEM. 
-Arduino could have made a `Serial.print_p()`. But `print()` is an overloaded (cpp) method of Serial.
-It magically maps to `print(char)`, `print(int)`, or `print(char*)`. However there is no type difference between a `char *` in RAM 
-and a `char *` in flash. The trick Arduino used is to make an empty class (`class __FlashStringHelper`), 
-and cast the `char *` to that class if that pointer points to flash. With the trick, overloading can be used again.
-
-To store a variable in PROGMEM, add attribute `PROGMEM` (and make sure it is constant and not on the stack - `static`). 
-To print it, use the above mentioned `pgm_read_byte()`/`pgm_read_word()` on the _address_ of the integer.
+To store a variable in PROGMEM, add attribute `PROGMEM` (and make sure it is constant and not on the stack, e.g. not within a function). 
+To print it, use the above mentioned `pgm_read_byte()`/`pgm_read_word()` on the _address_ of the integer (signed char).
 
 ```cpp
-static const int i PROGMEM = 5;
-Serial.println( (char) pgm_read_byte(&i) );
+const signed char i PROGMEM = 5;
+Serial.println( (signed char) pgm_read_byte(&i) );
 ```
 
-On my machine PROGMEM is defined in `C:\Users\Maarten\AppData\Local\Arduino15\packages\arduino\tools\avr-gcc\7.3.0-atmel3.6.1-arduino5\avr\include\avr\pgmspace.h`, roughly (simplified) as `#define  PROGMEM   __attribute__((__progmem__))`.
-
-To put a whole (character) array in PROGMEM, again add `PROGMEM` but also note the `const` and the `static`. 
-To print the first character, use the above mentioned `pgm_read_byte()`. 
-To print the whole string, use the `f()` macro, so that the correct overloaded version of `print()` is selected by the compiler.
+For a read `integer` we need to replace `pgm_read_byte` with `pgm_read_word` and hope `int` has the same size as `word`.
 
 ```cpp
-static const char s[] PROGMEM = "The content";
-Serial.println( (char) pgm_read_byte(s) );
-Serial.println( f(s) );
+const int i PROGMEM = 5;
+Serial.println( (int) pgm_read_word(&i) );
 ```
 
-For some reason, the `f()` macro must be defined by ourselves.
+On my machine PROGMEM is defined in 
+`C:\Users\Maarten\AppData\Local\Arduino15\packages\arduino\tools\avr-gcc\7.3.0-atmel3.6.1-arduino5\avr\include\avr\pgmspace.h`, 
+roughly (simplified) as `#define  PROGMEM   __attribute__((__progmem__))`.
+
+To store a whole (character) array in PROGMEM, again add `PROGMEM` but also note the `const` (and not _in_ a function, because then it would be on the stack). 
+To print its first character, use the above mentioned `pgm_read_byte()`. 
+
+```cpp
+const char s[] PROGMEM = "The content";
+Serial.println( (char) pgm_read_byte(&s[0]) );
+```
+
+A special case is a printing the whole string. If a string is in PROGMEM, all its characters have an address in PROGMEM. 
+Arduino could have made a `Serial.print_P()`. But `print()` is an overloaded (cpp) method of Serial.
+It selects the right variant, `print(char)`, `print(int)`, `print(char*)`, etc, based on the type of the parameter. 
+However there is no type difference between a `char *` in RAM and a `char *` in PROGMEM.
+The trick Arduino used is to make an empty class (`class __FlashStringHelper`), 
+and cast a `char *` to that class if that pointer points to flash. With the trick, the string has a cpp class type,
+and overloading can be used again.
+
+```cpp
+const char s[] PROGMEM = "The content";
+Serial.println( (__FlashStringHelper *)(s) );
+```
+
+For some reason, Arduino did not make a handy shortcut for that.
+So, I made my own `f()` macro 
 
 ```cpp
 #include <avr/pgmspace.h>
 #define f(s) ((__FlashStringHelper *)(s))
 ```
 
+so that I can write
+
+```cpp
+const char s[] PROGMEM = "The content";
+Serial.println( f(s) );
+```
+
 An alternative to having an array, is to have a pointer (to an array). Note that `s` is in RAM, but the chars are in PROGMEM.
+The standaard header `pgmspace.h` defines a helper macro `PSTR`, simplified, as
+
+```cpp
+# define PSTR(s) ((const PROGMEM char *)(s))
+```
+
+This allows to write
 
 ```cpp
 const char * s = PSTR("Content");
-Serial.println( (char) pgm_read_byte(s) );
+Serial.println( (char) pgm_read_byte(&s[0]) );
 Serial.println( f(s) );
 ```
 
@@ -296,7 +325,7 @@ For simple literals, for example in `print`, there is no need to make an explici
 Serial.println( f( PSTR("Example") ) );
 ```
 
-This occurs so often, that Arduino has made a macro for that: `F()`. Why `F` is publsihed and `f` not is a mystery to me:
+This occurs so often, that Arduino has made a macro for that: `F()`. Why `F` is published and `f` not is a mystery to me:
 
 ```cpp
 Serial.println( F("Example") );
@@ -315,7 +344,7 @@ static const char * const strings[] PROGMEM = { s0, s1, s2 };
 Serial.println( f(pgm_read_word(&strings[2])) );
 ```
 
-Unfortunately, `PSTR` can only be used within a function, so ths **does not work**.
+Unfortunately, `PSTR` can only be used within a function, so this **does not work**.
 
 ```cpp
 static const char * const strings[] PROGMEM = { PSTR("foo"), PSTR("bar"), PSTR("baz") };
