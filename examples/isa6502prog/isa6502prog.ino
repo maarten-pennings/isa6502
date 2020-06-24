@@ -10,7 +10,7 @@
 #include "cmdprog.h"
 
 
-// The read, write, asm and dasm commands expect a memory
+// The read, write, asm, dasm and prog commands expect a memory
 #define MEM_SIZE 1024
 uint8_t mem[MEM_SIZE]={0};
 uint8_t mem_read(uint16_t addr) { return mem[addr%MEM_SIZE];}
@@ -37,5 +37,5 @@ void setup() {
 
 
 void loop() {
-  cmd_pollserial();
+  cmd_pollserial(); // Feed command interpreter with chars from serial
 }
