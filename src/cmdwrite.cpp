@@ -28,22 +28,22 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
   int i;
   for( i=0; i<argc; i++ ) {
     if( cmd_isprefix(PSTR("seq"),argv[i]) ) { // seq <data> <num>
-      if( !(i+1<argc) ) { Serial.print(F("ERROR: write: seq: must have <data>")); goto exit;}
-      if( !(i+2<argc) ) { Serial.print(F("ERROR: write: seq: must have <data> and <num>")); i+=1; goto exit;}
+      if( !(i+1<argc) ) { Serial.print(F("ERROR: seq must have <data>")); goto exit;}
+      if( !(i+2<argc) ) { Serial.print(F("ERROR: seq must have <data> and <num>")); i+=1; goto exit;}
       uint16_t data, num;
-      if( !cmd_parse(argv[i+1],&data) || data>0xFF ) { Serial.print(F("ERROR: write: seq: <data> must be 00..FF")); i+=2; goto exit; }
-      if( !cmd_parse(argv[i+2],&num) ) { Serial.print(F("ERROR: write: seq: <num> must be 0000..FFFF")); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+1],&data) || data>0xFF ) { Serial.print(F("ERROR: seq <data> must be 00..FF")); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+2],&num) ) { Serial.print(F("ERROR: seq <num> must be 0000..FFFF")); i+=2; goto exit; }
       while( num>0 ) {
         mem_write(cmdwrite_addr, data );
         cmdwrite_addr++; num--;
       }
       i+=2;
     } else if( cmd_isprefix(PSTR("read"),argv[i]) ) { // read <addr> <num>
-      if( !(i+1<argc) ) { Serial.print(F("ERROR: write: read: must have <addr>")); goto exit;}
-      if( !(i+2<argc) ) { Serial.print(F("ERROR: write: read: must have <addr> and <num>")); i+=1; goto exit;}
+      if( !(i+1<argc) ) { Serial.print(F("ERROR: read must have <addr>")); goto exit;}
+      if( !(i+2<argc) ) { Serial.print(F("ERROR: read must have <addr> and <num>")); i+=1; goto exit;}
       uint16_t addr, num;
-      if( !cmd_parse(argv[i+1],&addr) ) { Serial.print(F("ERROR: write: read: <addr> must be 0000..FFFF")); i+=2; goto exit; }
-      if( !cmd_parse(argv[i+2],&num) ) { Serial.print(F("ERROR: write: read: <num> must be 0000..FFFF")); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+1],&addr) ) { Serial.print(F("ERROR: read <addr> must be 0000..FFFF")); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+2],&num) ) { Serial.print(F("ERROR: read <num> must be 0000..FFFF")); i+=2; goto exit; }
       if( cmdwrite_addr<addr ) { // copy forward in order to not overwrite self
         while( num>0 ) {
           mem_write(cmdwrite_addr, mem_read(addr) );
@@ -59,7 +59,7 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
       i+=2;
     } else { // <data>
       uint16_t data;
-      if( !cmd_parse(argv[i],&data) || data>0xFF ) { Serial.print(F("ERROR: write: <data> must be 00..FF")); goto exit; }
+      if( !cmd_parse(argv[i],&data) || data>0xFF ) { Serial.print(F("ERROR: <data> must be 00..FF")); goto exit; }
       mem_write(cmdwrite_addr, data);
       cmdwrite_addr++;
     }
@@ -73,15 +73,15 @@ exit: // print ignore message and update prompt
     Serial.println(F("ignored"));
   }
   // Set the streaming prompt (will only be shown in streaming mode)
-  char buf[8]; snprintf_P(buf,sizeof buf, PSTR("W:%04x> "),cmdwrite_addr); cmd_set_streamprompt(buf);
+  char buf[10]; snprintf_P(buf,sizeof buf, PSTR("W:%04X> "),cmdwrite_addr); cmd_set_streamprompt(buf);
 }
 
 
 // The command handler for the "write" command
 static void cmdwrite_main(int argc, char * argv[]) {
   uint16_t addr;
-  if( argc<2 ) {  Serial.println(F("ERROR: write: insufficient arguments (<addr>)")); return; }
-  if( !cmd_parse(argv[1],&addr) ) {  Serial.println(F("ERROR: write: expected hex <addr>")); return; }
+  if( argc<2 ) {  Serial.println(F("ERROR: insufficient arguments (<addr>)")); return; }
+  if( !cmd_parse(argv[1],&addr) ) {  Serial.println(F("ERROR: expected hex <addr>")); return; }
   cmdwrite_addr= addr;
   cmdwrite_notify(addr); // Notify first changes address
   cmdwrite_stream(argc-2,argv+2); // skip 'write addr'
