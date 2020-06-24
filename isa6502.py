@@ -22,25 +22,25 @@ class AddrMode : # Defines one addressing mode like ABS
     self.aix= None        # Index into the addrmodes[] list, set by post-processing
     
 addrmodes= [ # Global variable of all addressing modes
-  AddrMode("0Ea", 1, "?Error description", "??err??"), # addrmode-0
+  AddrMode("0Ea", 1, "?error description", "??err??"), # addrmode-0
 
-  AddrMode("IMP", 1, "Implied", "OPC"),
-  AddrMode("IMM", 2, "Immediate", "OPC #NN"),
-  AddrMode("ACC", 1, "Accumulator", "OPC A"),
+  AddrMode("IMP", 1, "implied", "OPC"),
+  AddrMode("IMM", 2, "immediate", "OPC #NN"),
+  AddrMode("ACC", 1, "accumulator", "OPC A"),
 
-  AddrMode("ABS", 3, "Absolute", "OPC HHLL"),
-  AddrMode("ABX", 3, "Absolute, indexed with x", "OPC HHLL,X"),
-  AddrMode("ABY", 3, "Absolute, indexed with y", "OPC HHLL,Y"),
+  AddrMode("ABS", 3, "absolute", "OPC HHLL"),
+  AddrMode("ABX", 3, "absolute, indexed with x", "OPC HHLL,X"),
+  AddrMode("ABY", 3, "absolute, indexed with y", "OPC HHLL,Y"),
 
-  AddrMode("ZPG", 2, "Zero page", "OPC *LL"),
-  AddrMode("ZPX", 2, "Zero page, indexed with x", "OPC *LL,X"),
-  AddrMode("ZPY", 2, "Zero page, indexed with y", "OPC *LL,Y"),
+  AddrMode("ZPG", 2, "zero page", "OPC *LL"),
+  AddrMode("ZPX", 2, "zero page, indexed with x", "OPC *LL,X"),
+  AddrMode("ZPY", 2, "zero page, indexed with y", "OPC *LL,Y"),
 
-  AddrMode("ZIX", 2, "Zero page, indexed with x, indirect", "OPC (LL,X)"),
-  AddrMode("ZIY", 2, "Zero page, indirect, indexed with y", "OPC (LL),Y"),
+  AddrMode("ZIX", 2, "zero page, indexed with x, indirect", "OPC (LL,X)"),
+  AddrMode("ZIY", 2, "zero page, indirect, indexed with y", "OPC (LL),Y"),
 
-  AddrMode("REL", 2, "Relative to PC", "OPC +NN"),
-  AddrMode("IND", 3, "Indirect", "OPC (HHLL)"),
+  AddrMode("REL", 2, "relative to PC", "OPC +NN"),
+  AddrMode("IND", 3, "indirect", "OPC (HHLL)"),
 ]
 
 # Make sure instructions are sorted
@@ -894,9 +894,10 @@ def print_h_header() :
   print("// This means you need special (code memory) instructions to read them.")
   print("// The access methods in this module take care of this for a part.")
   print("// However, when the returned value is a string (a pointer to characters), the characters are also in PROGMEM.")
-  print("// Use these pointers with xxx_P() functions or the f() macro")
+  print("// Use these pointers with xxx_P() functions, the f() macro, or the %S print format (capital S!)")
   print("//   Serial.print( f(isa_addrmode_aname(4)) );")
   print("//   if( strcmp_P(\"ABS\",isa_addrmode_aname(4))==0 ) {}")
+  print("//   sprintf(buf, \"out[%S]\",isa_addrmode_aname(4))")
   print()
   print()
   print("// Recall that F(xxx) puts literal xxx in PROGMEM _and_ makes it printable.")
@@ -920,14 +921,14 @@ def print_h_addrmodes() :
   print( f"#define ISA_AIX_FIRST  1 // for iteration: first")
   print( f"#define ISA_AIX_LAST  {len(addrmodes)} // for iteration: (one after) last")
   print()
-  print("const char * isa_addrmode_aname ( int aix );              // A three letter name for the addressing mode (e.g. ABS)")
-  print("uint8_t      isa_addrmode_bytes ( int aix );              // Number of bytes this addressing mode takes (opcode plus 0, 1, or 2 bytes for operand)")
-  print("const char * isa_addrmode_desc  ( int aix );              // Human readable description of the addressing mode")
-  print("const char * isa_addrmode_syntax( int aix );              // Notation in assembly language")
-  print("int          isa_addrmode_find  (const char * aname);     // Returns aix for `aname` or 0 if not found")
-  print("int          isa_snprint_aname  (char * str, int size, int minlen, int aix); // Prints the addressing mode name (eg ABS) associated with `aix` to `str`.")
-  print("int          isa_snprint_op     (char * str, int size, int aix, const char * op); // Prints the operand-string (the operand `op` formated according to addressing mode `aix`) to `str`.")
-  print("int          isa_parse          (char * ops);             // ops is an operand string. Returns the addressing mode that maps the syntax of ops, and isolates the operand in ops")
+  print("/*PROGMEM*/ const char * isa_addrmode_aname ( int aix );              // A three letter name for the addressing mode (e.g. ABS)")
+  print("            uint8_t      isa_addrmode_bytes ( int aix );              // Number of bytes this addressing mode takes (opcode plus 0, 1, or 2 bytes for operand)")
+  print("/*PROGMEM*/ const char * isa_addrmode_desc  ( int aix );              // Human readable description of the addressing mode")
+  print("/*PROGMEM*/ const char * isa_addrmode_syntax( int aix );              // Notation in assembly language")
+  print("            int          isa_addrmode_find  (const char * aname);     // Returns aix for `aname` or 0 if not found")
+  print("            int          isa_snprint_aname  (char * str, int size, int minlen, int aix); // Prints the addressing mode name (eg ABS) associated with `aix` to `str`.")
+  print("            int          isa_snprint_op     (char * str, int size, int aix, const char * op); // Prints the operand-string (the operand `op` formated according to addressing mode `aix`) to `str`.")
+  print("            int          isa_parse          (char * ops);             // ops is an operand string. Returns the addressing mode that maps the syntax of ops, and isolates the operand in ops")
   print()
   print()
 
@@ -945,13 +946,13 @@ def print_h_instructions() :
   print("// Opcode 0xBB is not in use in the 6502. We use it in instruction.opcodes to signal the addrmode does not exist for that instruction")
   print("#define ISA_OPCODE_INVALID 0xBB")
   print()
-  print("const char * isa_instruction_iname  ( int iix );          // The instruction name (e.g. LDA)")
-  print("const char * isa_instruction_desc   ( int iix );          // The description of the instruction")
-  print("const char * isa_instruction_help   ( int iix );          // The detailed description of the instruction")
-  print("const char * isa_instruction_flags  ( int iix );          // The (program status) flags the instruction updates")
-  print("uint8_t      isa_instruction_opcodes( int iix, int aix ); // For each addrmode, the actual opcode")
-  print("int          isa_snprint_iname      (char * str, int size, int minlen, int iix); // Prints the instruction name (eg LDA) associated with `iix` to `str`.")
-  print("int          isa_instruction_find   (const char * iname); // Returns iix for `iname` or 0 if not found")
+  print("/*PROGMEM*/ const char * isa_instruction_iname  ( int iix );          // The instruction name (e.g. LDA)")
+  print("/*PROGMEM*/ const char * isa_instruction_desc   ( int iix );          // The description of the instruction")
+  print("/*PROGMEM*/ const char * isa_instruction_help   ( int iix );          // The detailed description of the instruction")
+  print("/*PROGMEM*/ const char * isa_instruction_flags  ( int iix );          // The (program status) flags the instruction updates")
+  print("            uint8_t      isa_instruction_opcodes( int iix, int aix ); // For each addrmode, the actual opcode")
+  print("            int          isa_snprint_iname      (char * str, int size, int minlen, int iix); // Prints the instruction name (eg LDA) associated with `iix` to `str`.")
+  print("            int          isa_instruction_find   (const char * iname); // Returns iix for `iname` or 0 if not found")
   print()
   print()
 
