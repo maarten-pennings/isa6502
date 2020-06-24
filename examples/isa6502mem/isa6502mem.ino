@@ -35,5 +35,5 @@ void setup() {
 
 
 void loop() {
-  cmd_pollserial();
+  cmd_pollserial(); // Feed command interpreter with chars from serial
 }
