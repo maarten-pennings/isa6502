@@ -10,7 +10,7 @@
 static uint16_t cmdwrite_addr;
 
 
-// This notification called for a write command; first changed address is passed.
+// This notification is called for a write command; lowest changed address is passed.
 // For laziness, the handling is implemented here, not on app level
 static void cmdwrite_notify(uint16_t addr) {
   // set read/dasm pointer (so that they can show what has just been written)
@@ -31,8 +31,8 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
       if( !(i+1<argc) ) { Serial.print(F("ERROR: seq must have <data>")); goto exit;}
       if( !(i+2<argc) ) { Serial.print(F("ERROR: seq must have <data> and <num>")); i+=1; goto exit;}
       uint16_t data, num;
-      if( !cmd_parse(argv[i+1],&data) || data>0xFF ) { Serial.print(F("ERROR: seq <data> must be 00..FF")); i+=2; goto exit; }
-      if( !cmd_parse(argv[i+2],&num) ) { Serial.print(F("ERROR: seq <num> must be 0000..FFFF")); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+1],&data) || data>0xFF ) { cmd_printf_P(PSTR("ERROR: seq <data> must be 00..FF, not '%s'"), argv[i+1]); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+2],&num) ) { cmd_printf_P(PSTR("ERROR: seq <num> must be 0000..FFFF, not '%s'"),argv[i+2]); i+=2; goto exit; }
       while( num>0 ) {
         mem_write(cmdwrite_addr, data );
         cmdwrite_addr++; num--;
@@ -42,8 +42,8 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
       if( !(i+1<argc) ) { Serial.print(F("ERROR: read must have <addr>")); goto exit;}
       if( !(i+2<argc) ) { Serial.print(F("ERROR: read must have <addr> and <num>")); i+=1; goto exit;}
       uint16_t addr, num;
-      if( !cmd_parse(argv[i+1],&addr) ) { Serial.print(F("ERROR: read <addr> must be 0000..FFFF")); i+=2; goto exit; }
-      if( !cmd_parse(argv[i+2],&num) ) { Serial.print(F("ERROR: read <num> must be 0000..FFFF")); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+1],&addr) ) { cmd_printf_P(PSTR("ERROR: read <addr> must be 0000..FFFF, not '%s'"),argv[i+1]); i+=2; goto exit; }
+      if( !cmd_parse(argv[i+2],&num) ) { cmd_printf_P(PSTR("ERROR: read <num> must be 0000..FFFF, not '%s'"),argv[i+2]); i+=2; goto exit; }
       if( cmdwrite_addr<addr ) { // copy forward in order to not overwrite self
         while( num>0 ) {
           mem_write(cmdwrite_addr, mem_read(addr) );
@@ -59,7 +59,7 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
       i+=2;
     } else { // <data>
       uint16_t data;
-      if( !cmd_parse(argv[i],&data) || data>0xFF ) { Serial.print(F("ERROR: <data> must be 00..FF")); goto exit; }
+      if( !cmd_parse(argv[i],&data) || data>0xFF ) { cmd_printf_P(PSTR("ERROR: <data> must be 00..FF, not '%s'"),argv[i]); goto exit; }
       mem_write(cmdwrite_addr, data);
       cmdwrite_addr++;
     }
@@ -81,9 +81,9 @@ exit: // print ignore message and update prompt
 static void cmdwrite_main(int argc, char * argv[]) {
   uint16_t addr;
   if( argc<2 ) {  Serial.println(F("ERROR: insufficient arguments (<addr>)")); return; }
-  if( !cmd_parse(argv[1],&addr) ) {  Serial.println(F("ERROR: expected hex <addr>")); return; }
+  if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\n"),argv[1]); return; }
   cmdwrite_addr= addr;
-  cmdwrite_notify(addr); // Notify first changes address
+  cmdwrite_notify(addr); // Notify lowest changed address
   cmdwrite_stream(argc-2,argv+2); // skip 'write addr'
 }
 
@@ -91,7 +91,7 @@ static void cmdwrite_main(int argc, char * argv[]) {
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
 static const char cmdwrite_longhelp[] PROGMEM = 
   "SYNTAX: write <addr> <data>...\n"
-  "- writes <data> byte to memory location <addr>\n"
+  "- writes the <data> byte to memory location <addr>\n"
   "- multiple <data> bytes allowed (auto increment of <addr>)\n"
   "- if <data> is absent, starts streaming mode (empty line ends it)\n"
   "- <data> can also be a 'seq' or 'read' macro\n"
