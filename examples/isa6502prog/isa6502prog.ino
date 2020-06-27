@@ -12,6 +12,7 @@
 
 // The read, write, asm, dasm and prog commands expect a memory
 #define MEM_SIZE 1024
+const uint16_t mem_size= MEM_SIZE;
 uint8_t mem[MEM_SIZE]={0};
 uint8_t mem_read(uint16_t addr) { return mem[addr%MEM_SIZE];}
 void    mem_write(uint16_t addr, uint8_t data) { mem[addr%MEM_SIZE]=data; }
