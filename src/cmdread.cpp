@@ -6,7 +6,7 @@
 
 
 // Next addr to read
-uint16_t cmdread_addr; // Not extern, set by write/dasm
+uint16_t cmdread_addr; // Not static, set by write/dasm
 
 
 // Reads 'num' bytes from memory, starting at 'addr'.
@@ -18,9 +18,10 @@ static void cmdread_read( uint16_t addr, uint16_t num ) {
     if( n%CMD_BYTESPERLINE==0 ) cmd_printf_P( PSTR("%04X:"), addr); 
     uint8_t data= mem_read(addr);
     cmd_printf_P( PSTR(" %02X"), data);
-    n++; num--; addr++; // auto wraps
+    n++; num--; addr++; // addr auto wraps
     if( n%CMD_BYTESPERLINE==0 ) { Serial.println(); }
   }
+    if( n%CMD_BYTESPERLINE!=0 ) { Serial.println(); }
   cmdread_addr= addr;
 }
 
@@ -35,11 +36,11 @@ static void cmdread_main( int argc, char * argv[] ) {
   if( argv[1][0]=='-' && argv[1][1]=='\0' ) 
     addr= cmdread_addr;
   else 
-    if( !cmd_parse(argv[1],&addr) ) { Serial.println(F("ERROR: expected hex <addr>")); return; }
+    if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\n"),argv[1]); return; }
   if( argc==2 ) { cmdread_read(addr,CMDREAD_NUM); return; }
   // Parse num
   uint16_t num;
-  if( !cmd_parse(argv[2],&num) ) { Serial.println(F("ERROR: expected hex <num>")); return; }
+  if( !cmd_parse(argv[2],&num) ) { cmd_printf_P(PSTR("ERROR: expected hex <num>, not '%s'\n"), argv[2]); return; }
   if( argc==3 ) { cmdread_read(addr,num); return; }
   Serial.println(F("ERROR: too many arguments"));
 }
@@ -50,7 +51,7 @@ static const char cmdread_longhelp[] PROGMEM =
   "- reads <num> bytes from memory, starting at location <addr>\n"
   "- when <num> is absent, it defaults to 40\n"
   "- when <addr> is absent or -, it defaults to \"previous\" address\n"
-  "- <addr> and <num> are 0000..FFFF\n"
+  "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\n"
 ;
 
   
