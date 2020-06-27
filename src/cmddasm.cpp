@@ -8,7 +8,7 @@
 
 
 // Next address to disassemble
-uint16_t cmddasm_addr;  // Not extern, set by write/dasm
+uint16_t cmddasm_addr;  // Not static, set by write/asm
 
 
 // Disassembles 'num' instructions from memory, starting at 'addr'.
@@ -25,10 +25,10 @@ static void cmddasm_dasm( uint16_t addr, uint16_t num ) {
     // Prepare format
     char opsB[7]; // binary rep (first 3 columns)
     char opsT[5]; // text rep (last operand column)
-    if(      bytes==1 ) { snprintf_P(opsB,sizeof opsB,PSTR("     "));             *opsT=0;                          }
+    if(      bytes==1 ) { snprintf_P(opsB,sizeof opsB,PSTR("     "));             *opsT=0;                                               }
     else if( bytes==2 ) { snprintf_P(opsB,sizeof opsB,PSTR("%02X   "),op1);       snprintf_P(opsT,sizeof opsT,PSTR("%02X"),op1);         }
     else if( bytes==3 ) { snprintf_P(opsB,sizeof opsB,PSTR("%02X %02X"),op1,op2); snprintf_P(opsT,sizeof opsT,PSTR("%02X%02X"),op2,op1); }
-    else { Serial.println(F("ERROR: dasm: this should not happen (bytes mismatch)")); return; }
+    else { cmd_printf_P(PSTR("ERROR: this should not happen (wrong bytes %d)"),bytes); return; }
     // Print binary columns
     cmd_printf_P( PSTR("%04X %02X %s "), addr, opcode, opsB); 
     // Print text columns
@@ -61,11 +61,11 @@ static void cmddasm_main( int argc, char * argv[] ) {
   if( argv[1][0]=='-' && argv[1][1]=='\0' ) 
     addr= cmddasm_addr;
   else 
-    if( !cmd_parse(argv[1],&addr) ) { Serial.println(F("ERROR: expected hex <addr>")); return; }
+    if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\n"),argv[1]); return; }
   if( argc==2 ) { cmddasm_dasm(addr,CMDDASM_NUM); return; }
   // Parse num
   uint16_t num;
-  if( !cmd_parse(argv[2],&num) ) { Serial.println(F("ERROR: expected hex <num>")); return; }
+  if( !cmd_parse(argv[2],&num) ) { cmd_printf_P(PSTR("ERROR: expected hex <num>, not '%s'\n"),argv[2]); return; }
   if( argc==3 ) { cmddasm_dasm(addr,num); return; }
   Serial.println(F("ERROR: too many arguments"));
 }
@@ -76,7 +76,7 @@ static const char cmddasm_longhelp[] PROGMEM =
   "- disassembles <num> instructions from memory, starting at location <addr>\n"
   "- when <num> is absent, it defaults to 8\n"
   "- when <addr> is absent or '-', it defaults to \"previous\" address\n"
-  "- <addr> and <num> are 0000..FFFF\n"
+  "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\n"
 ;
   
  
