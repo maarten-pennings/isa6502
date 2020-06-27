@@ -8,17 +8,17 @@
 #include "cmdprog.h"
 
 
-// todo: all strings get F() - also in sprintf
-// todo: reduce print output (all prefixes)
 // todo: prog file [load name, save name, del name, dir]
-// todo: extend "prog long help" to explain <line> syntax 
-// todo: all hex output in uppercase (so that labels can use lower case)
-// todo: check that two .ORGs do not overwrite each other
+// todo: add "prog help" to explain <line> syntax 
 // todo: ".WORDS label" does not work (introduce .VECTOR ?)
+// todo: warning about segment overlap, with knowledge that we have 64x1k mirrors
+
+// todo: all strings get F()/PTSR() - also in sprintf
+// todo: all strings need \r\n (errors, help)
 // todo: 'on line xx' move to start of line 'ERROR: line xx:
 // todo: .BYTES->.IB, .WORDS->.IW, .EQBYTES->.DB, .EQWORDS->.DW 
-// todo: have one global printf buf (or variadic macro)
-// todo: warning about segment overlap, with knowledge that we have 64x1k mirrors
+// todo: check for lower case x
+
 
 // ==========================================================================
 // Fixed length string
@@ -80,7 +80,6 @@ static bool fs_eq(uint8_t fsx1, uint8_t fsx2 ) {
 // Marks slot `fsx` as empty, making it available for `add` again.
 // It is safe to fs_del(0) - it does nothing
 static void fs_del(uint8_t fsx) {
-  // Serial.print("fs_del:"); Serial.println(fsx);
   if( fsx<1 || fsx>=FS_NUM ) return; // index out of range
   fs_store[fsx][0]='\0';  // mark slot as empty
 }
@@ -286,7 +285,7 @@ static uint16_t ln_num;
 // Initializes the store.
 static void ln_init(void) {
   ln_num=0;
-  if( sizeof(ln_t)!=6 ) Serial.println(F("ERROR: prog: packing or padding problem"));
+  if( sizeof(ln_t)!=6 ) Serial.println(F("ERROR: packing or padding problem"));
 }
 
 
@@ -357,12 +356,12 @@ static ln_t * ln_parse_comment(int argc, char* argv[]) {
     } else {
       ch= argv[argix][charix++];
     }
-    if( cmtix==sizeof(ln_temp.cmt.cmt_fsxs) ) { Serial.println(F("WARNING: prog: comment truncated (line too long)")); return 0; }
+    if( cmtix==sizeof(ln_temp.cmt.cmt_fsxs) ) { Serial.println(F("WARNING: comment truncated (line too long)")); return 0; }
     buf[bufix++]= ch;
     if( bufix==FS_SIZE ) {
       buf[FS_SIZE]= 0;
       ln_temp.cmt.cmt_fsxs[cmtix]= fs_add(buf);
-      if( ln_temp.cmt.cmt_fsxs[cmtix]==0 ) { Serial.println(F("WARNING: prog: comment truncated (out of string memory)")); return 0; } 
+      if( ln_temp.cmt.cmt_fsxs[cmtix]==0 ) { Serial.println(F("WARNING: comment truncated (out of string memory)")); return 0; } 
       cmtix++;
       bufix= 0;
     }
@@ -370,7 +369,7 @@ static ln_t * ln_parse_comment(int argc, char* argv[]) {
   if( bufix>0 ) {
     buf[bufix]= 0;
     ln_temp.cmt.cmt_fsxs[cmtix]= fs_add(buf);
-    if( ln_temp.cmt.cmt_fsxs[cmtix]==0 ) Serial.println(F("WARNING: prog: comment truncated (out of string memory)"));
+    if( ln_temp.cmt.cmt_fsxs[cmtix]==0 ) Serial.println(F("WARNING: comment truncated (out of string memory)"));
     cmtix++;
   }
   if( cmtix<sizeof(ln_temp.cmt.cmt_fsxs) ) ln_temp.cmt.cmt_fsxs[cmtix]=0;
@@ -382,12 +381,12 @@ static ln_t * ln_parse_comment(int argc, char* argv[]) {
 // Returns the parsed pragma line (or 0 on parse error)
 static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
   if( ln_isreserved(label) ) {
-    Serial.println(F("ERROR: prog: label uses reserved word (or hex lookalike)")); 
+    Serial.println(F("ERROR: label uses reserved word (or hex lookalike)")); 
     return 0; 
   }
   uint8_t lbl_fsx= fs_add(label); 
   if( label!=0 && *label!='\0' && lbl_fsx==0 ) {
-    Serial.println(F("ERROR: prog: label too long or out of string memory")); 
+    Serial.println(F("ERROR: label too long or out of string memory")); 
     return 0; 
   }
   // WARNING: free resource lbl_fsx if we can not add line
@@ -395,10 +394,10 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
   if( strcasecmp(pragma,".ORG")==0 ) {
     uint16_t addr;
     if( !cmd_parse(operand,&addr) ) {
-      Serial.println(F("ERROR: prog: .org: addr must be 0000..FFFF"));   
+      Serial.println(F("ERROR: addr must be 0000..FFFF"));   
       goto free_lvl_fsx;      
     }
-    if( lbl_fsx!=0 ) { fs_del(lbl_fsx); Serial.println(F("WARNING: prog: .org: no label expected")); } 
+    if( lbl_fsx!=0 ) { fs_del(lbl_fsx); Serial.println(F("WARNING: .ORG does not have label")); } 
     ln_temp.tag= LN_TAG_PRAGMA_ORG;
     ln_temp.org.addr= addr;
     return &ln_temp;
@@ -412,30 +411,30 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
       while( *operand!=',' && *operand!='\0' ) {
         buf[bufix++]= *operand++;
         if( bufix==sizeof(buf) ) {
-          Serial.print(F("ERROR: prog: .bytes: byte ")); Serial.print(bytesix+1); Serial.println(F(" too long")); 
+          Serial.print(F("ERROR: byte ")); Serial.print(bytesix+1); Serial.println(F(" too long")); 
           goto free_lvl_fsx;        
         }
       }
       buf[bufix++]='\0';
       uint16_t word;
       if( !cmd_parse(buf,&word) || word>0xff ) {
-        Serial.print(F("ERROR: prog: .bytes: byte ")); Serial.print(bytesix+1); Serial.println(F(" must be 00..FF")); 
+        Serial.print(F("ERROR: byte ")); Serial.print(bytesix+1); Serial.println(F(" must be 00..FF")); 
         goto free_lvl_fsx;      
       }
       if( bytesix==sizeof(bytes) ) {
-        Serial.println(F("ERROR: prog: .bytes: too many bytes")); 
+        Serial.println(F("ERROR: too many bytes")); 
         goto free_lvl_fsx;        
       }
       bytes[bytesix++]= word;
       if( *operand==',' ) operand++;
     }
     if( bytesix==0 ) {
-      Serial.println(F("ERROR: prog: .bytes: bytes missing")); 
+      Serial.println(F("ERROR: bytes missing")); 
       goto free_lvl_fsx;        
     }
     uint8_t bytes_fsx= fs_add_raw(bytes,bytesix);
     if( bytes_fsx==0 ) {
-      Serial.println(F("ERROR: prog: out of string memory for bytes")); 
+      Serial.println(F("ERROR: out of string memory (for bytes)")); 
       goto free_lvl_fsx;      
     }
     ln_temp.tag= LN_TAG_PRAGMA_BYTES;
@@ -452,30 +451,30 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
       while( *operand!=',' && *operand!='\0' ) {
         buf[bufix++]= *operand++;
         if( bufix==sizeof(buf) ) {
-          Serial.print(F("ERROR: prog: .words: word ")); Serial.print(wordsix+1); Serial.println(F(" too long")); 
+          Serial.print(F("ERROR: word ")); Serial.print(wordsix+1); Serial.println(F(" too long")); 
           goto free_lvl_fsx;        
         }
       }
       buf[bufix++]='\0';
       uint16_t word;
       if( !cmd_parse(buf,&word) ) {
-        Serial.print(F("ERROR: prog: .words: word ")); Serial.print(wordsix+1); Serial.println(F(" must be 0000..FFFF")); 
+        Serial.print(F("ERROR: word ")); Serial.print(wordsix+1); Serial.println(F(" must be 0000..FFFF")); 
         goto free_lvl_fsx;      
       }
       if( wordsix==sizeof(words) ) {
-        Serial.println(F("ERROR: prog: .words: too many words")); 
+        Serial.println(F("ERROR: too many words")); 
         goto free_lvl_fsx;        
       }
       words[wordsix++]= word;
       if( *operand==',' ) operand++;
     }
     if( wordsix==0 ) {
-      Serial.println(F("ERROR: prog: .words: words missing")); 
+      Serial.println(F("ERROR: words missing")); 
       goto free_lvl_fsx;        
     }
     uint8_t words_fsx= fs_add_raw((uint8_t*)words,wordsix*2);
     if( words_fsx==0 ) {
-      Serial.println(F("ERROR: prog: out of string memory for words")); 
+      Serial.println(F("ERROR: out of string memory (for words)")); 
       goto free_lvl_fsx;      
     }
     ln_temp.tag= LN_TAG_PRAGMA_WORDS;
@@ -485,11 +484,11 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
   } else if( strcasecmp(pragma,".EQBYTE")==0 ) {
     uint16_t byte;
     if( lbl_fsx==0 ) {
-      Serial.println(F("ERROR: prog: .eqbyte: label missing")); 
+      Serial.println(F("ERROR: .EQBYTE needs label")); 
       goto free_lvl_fsx;      
     }
     if( !cmd_parse(operand,&byte) || byte>0xff ) {
-      Serial.println(F("ERROR: prog: .eqbyte: byte must be 00..FF")); 
+      Serial.println(F("ERROR: byte must be 00..FF")); 
       goto free_lvl_fsx;      
     }
     ln_temp.tag= LN_TAG_PRAGMA_EQBYTE;
@@ -499,11 +498,11 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
   } else if( strcasecmp(pragma,".EQWORD")==0 ) {
     uint16_t word;
     if( lbl_fsx==0 ) {
-      Serial.println(F("ERROR: prog: .eqword: label missing")); 
+      Serial.println(F("ERROR: .EQWORD must have label")); 
       goto free_lvl_fsx;      
     }
     if( !cmd_parse(operand,&word) ) {
-      Serial.println(F("ERROR: prog: .eqword: word must be 0000..FFFF")); 
+      Serial.println(F("ERROR: word must be 0000..FFFF")); 
       goto free_lvl_fsx;      
     }
     ln_temp.tag= LN_TAG_PRAGMA_EQWORD;
@@ -511,7 +510,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
     ln_temp.eqword.word= word;
     return &ln_temp;
   } 
-  Serial.println(F("ERROR: prog: unknown pragma")); 
+  Serial.println(F("ERROR: unknown pragma")); 
   // goto free_lvl_fsx;
   
 free_lvl_fsx:    
@@ -528,12 +527,12 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
   
   // Label
   if( ln_isreserved(label) ) {
-    Serial.println(F("ERROR: prog: label uses reserved word (or hex lookalike)")); 
+    Serial.println(F("ERROR: label uses reserved word (or hex lookalike)")); 
     return 0; 
   }
   uint8_t lbl_fsx= fs_add(label); 
   if( label!=0 && *label!='\0' && lbl_fsx==0 ) {
-    Serial.println(F("ERROR: prog: out of string memory for label")); 
+    Serial.println(F("ERROR: out of string memory for label")); 
     return 0; 
   }
   // WARNING: free resource lbl_fsx if we can not add line
@@ -542,7 +541,7 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
   uint8_t flags= 0;
   int aix= isa_parse(opbuf); // This removes "addressing chars",and leaves the actual operand chars in `opbuf`
   if( aix==0 ) {
-    Serial.println(F("ERROR: prog: unknown addressing mode syntax")); 
+    Serial.println(F("ERROR: unknown addressing mode syntax")); 
     goto free_lvl_fsx;      
   }
   if( aix==ISA_AIX_ABS && isa_instruction_opcodes(iix,ISA_AIX_REL)!=ISA_OPCODE_INVALID ) {
@@ -553,7 +552,7 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
   uint8_t opcode;
   opcode= isa_instruction_opcodes(iix,aix);
   if( opcode==ISA_OPCODE_INVALID ) {
-    Serial.println(F("ERROR: prog: instruction does not have that addressing mode")); 
+    Serial.println(F("ERROR: instruction does not have that addressing mode")); 
     goto free_lvl_fsx;        
   }
   
@@ -567,18 +566,18 @@ static ln_t * ln_parse_inst( char * label, int iix, char * operand ) {
   } else {
     // not a hex number, so maybe a label
     if( !ln_islabel(opbuf) ) {
-      Serial.println(F("ERROR: prog: operand does not have label syntax")); 
+      Serial.println(F("ERROR: operand does not have label syntax")); 
       goto free_lvl_fsx;        
     }
     if( ln_isreserved(opbuf) ) {
-      Serial.println(F("ERROR: prog: operand uses reserved word")); 
+      Serial.println(F("ERROR: operand uses reserved word")); 
       goto free_lvl_fsx;        
     }
     // This is a label, `op` is the label index in the string store. Set the SYM flag
     flags |= LN_FLAG_OPisLBL;
     op= fs_add(opbuf); 
     if( op==0 ) {
-      Serial.println(F("ERROR: prog: out of string memory for operand")); 
+      Serial.println(F("ERROR: out of string memory for operand")); 
       goto free_lvl_fsx;        
     }
   }
@@ -602,7 +601,7 @@ free_lvl_fsx:
 static ln_t * ln_parse(int argc, char* argv[]) {
   // Analyze the argv pattern, guess the line type and call the parse for the line type
   if( argc==0 ) { 
-    Serial.println(F("ERROR: prog: empty line")); 
+    Serial.println(F("ERROR: empty line")); 
     return 0; 
   }
   // ; comment
@@ -617,7 +616,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
   if( argv[0][0]==';' ) { 
     // ; comment
     if( argv[0][1]=='\0' ) return ln_parse_comment(argc-1,argv+1);
-    Serial.println(F("ERROR: prog: comment must have space after ;")); 
+    Serial.println(F("ERROR: comment must have space after ;")); 
     return 0;
   }
   // LABEL .PRAGMA OPERAND
@@ -634,7 +633,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
     if( argv[0][0]=='.' ) return ln_parse_pragma(0,argv[0],0); 
     uint8_t inst= isa_instruction_find(argv[0]);
     if( inst!=0 ) return ln_parse_inst(0,inst,0); 
-    Serial.println(F("ERROR: prog: unknown instruction")); 
+    Serial.println(F("ERROR: unknown instruction")); 
     return 0; 
   }
   // LABEL .PRAGMA OPERAND
@@ -652,7 +651,7 @@ static ln_t * ln_parse(int argc, char* argv[]) {
     if( iix!=0 ) return ln_parse_inst(0,iix,argv[1]);
     iix= isa_instruction_find(argv[1]);
     if( iix!=0 ) return ln_parse_inst(argv[0],iix,0);
-    Serial.println(F("ERROR: prog: unknown instruction (with label or operand)")); 
+    Serial.println(F("ERROR: unknown instruction (with label or operand)")); 
     return 0;
   }
   // LABEL .PRAGMA OPERAND
@@ -663,10 +662,10 @@ static ln_t * ln_parse(int argc, char* argv[]) {
     if( argv[1][0]=='.' ) return ln_parse_pragma(argv[0],argv[1],argv[2]);
     int iix= isa_instruction_find(argv[1]);
     if( iix!=0 ) return ln_parse_inst(argv[0],iix,argv[2]);
-    Serial.println(F("ERROR: prog: unknown instruction (with label and operand)")); 
+    Serial.println(F("ERROR: unknown instruction (with label and operand)")); 
     return 0;
   }
-  Serial.println(F("ERROR: prog: too long; expect at most \"label inst op\"")); 
+  Serial.println(F("ERROR: expected 'label inst op'")); 
   return 0;
 }
 
@@ -699,7 +698,7 @@ void ln_del(ln_t * ln) {
     if( ln->inst.flags & LN_FLAG_OPisLBL ) fs_del(ln->inst.op); 
     return;
   }
-  Serial.print(F("ERROR: prog: delete: internal error (tag ")); Serial.print(ln->tag); Serial.println(')');
+  Serial.print(F("ERROR: delete: internal error (tag ")); Serial.print(ln->tag); Serial.println(')');
 }
 
 
@@ -888,7 +887,7 @@ static comp_t comp_result;
 
 // After compiling: returns the address of a line
 static uint16_t comp_get_addr(uint16_t lix) {
-  if( lix>=ln_num ) { Serial.print(F("ERROR: prog: internal error (line index ")); Serial.print(lix); Serial.println(')'); return 0; }
+  if( lix>=ln_num ) { Serial.print(F("ERROR: internal error (line index ")); Serial.print(lix); Serial.println(')'); return 0; }
   return comp_result.ln[lix].addr;
 }
 
@@ -912,29 +911,29 @@ static uint8_t comp_get_numbytes(uint16_t lix) {
   case LN_TAG_PRAGMA_EQBYTE : comp_numbytes=0; break; // only defines a label to be a byte
   case LN_TAG_PRAGMA_EQWORD : comp_numbytes=0; break; // only defines a label to be a word
   case LN_TAG_INST          : comp_numbytes= isa_addrmode_bytes(isa_opcode_aix(ln->inst.opcode)); break;
-  default                   : Serial.print(F("ERROR: prog: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
+  default                   : Serial.print(F("ERROR: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
   }
   return comp_numbytes;
 }
   
 // After compiling, returns byte `bix` for line number `lix`
 static uint8_t comp_get_byte(uint16_t lix, uint8_t bix) {
-  if( bix>=comp_numbytes ) { Serial.print(F("ERROR: prog: internal error (byte index ")); Serial.print(bix); Serial.println(')'); return 0; }
+  if( bix>=comp_numbytes ) { Serial.print(F("ERROR: internal error (byte index ")); Serial.print(bix); Serial.println(')'); return 0; }
   ln_t * ln= &ln_store[lix]; 
   uint8_t b;
   switch( ln->tag ) {
-    default                   : b=0; Serial.print(F("ERROR: prog: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
+    default                   : b=0; Serial.print(F("ERROR: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
     case LN_TAG_PRAGMA_BYTES  : b= comp_fs_buf[bix]; break; // HACK (*)
     case LN_TAG_PRAGMA_WORDS  : b= comp_fs_buf[bix]; break; // HACK (*)
     case LN_TAG_INST          : {
       // Does op contain the real opcode or a label
       uint16_t val = ( ln->inst.flags & LN_FLAG_OPisLBL ) ? comp_result.fs[comp_result.fs[ln->inst.op].defx].val : ln->inst.op ;
-      if( ln->inst.flags & LN_FLAG_ABSforREL ) val = val-(2+comp_get_addr(lix)); // todo: check overflow
+      if( ln->inst.flags & LN_FLAG_ABSforREL ) val = val-(2+comp_get_addr(lix)); 
       switch( bix ) {
         case 0 : { b= ln->inst.opcode; break; }  
         case 1 : { b= (val>>0) & 0xFF; break; }
         case 2 : { b= (val>>8) & 0xFF; break; }
-        default: { Serial.print(F("ERROR: prog: internal error (byte index ")); Serial.print(bix); Serial.println(')'); b= 0; break; }  
+        default: { Serial.print(F("ERROR: internal error (byte index ")); Serial.print(bix); Serial.println(')'); b= 0; break; }  
       }
       break;
     };
@@ -964,7 +963,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
     if( ln->tag==LN_TAG_PRAGMA_EQBYTE ) {
       uint8_t lbl= ln->eqbyte.lbl_fsx;
       if( lbl==0 ) {
-        Serial.println(F("ERROR: prog: compile: label missing for .EQBYTE")); 
+        Serial.println(F("ERROR: label missing for .EQBYTE")); 
         (*warnings)++;
       } else {
         comp_fs_t * cfs= &comp_result.fs[lbl];
@@ -977,7 +976,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
     if( ln->tag==LN_TAG_PRAGMA_EQWORD ) { 
       uint8_t lbl= ln->eqword.lbl_fsx;
       if( lbl==0 ) {
-        Serial.println(F("ERROR: prog: compile: label missing for .EQWORD")); 
+        Serial.println(F("ERROR: label missing for .EQWORD")); 
         (*warnings)++;
       } else {
         comp_fs_t * cfs= &comp_result.fs[lbl];
@@ -989,7 +988,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
     }
     if( ln->tag==LN_TAG_PRAGMA_ORG ) { 
       if( comp_result.org_num+1==ORG_NUM )  { 
-        Serial.println(F("ERROR: prog: compile: too many .ORGs")); 
+        Serial.println(F("ERROR: too many .ORGs")); 
         (*errors)++; 
       } else {
         // start next org section
@@ -1001,7 +1000,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       continue;
     } 
     if( comp_result.org_num==0 && comp_result.org[0].addr1==comp_result.org[0].addr2 ) {
-      Serial.print(F("WARNING: prog: compile: no .ORG, assuming ")); Serial.println(comp_result.org[comp_result.org_num].addr1,HEX);
+      Serial.print(F("WARNING: no .ORG, assuming ")); Serial.println(comp_result.org[comp_result.org_num].addr1,HEX);
       (*warnings)++;
     }
     if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
@@ -1041,7 +1040,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       continue;
     } 
     if( ln->tag != LN_TAG_INST ) { 
-      Serial.println(F("ERROR: prog: compile: internal error (tag)")); 
+      Serial.println(F("ERROR: internal error (tag)")); 
       (*errors)++;
       return;
     }
@@ -1092,7 +1091,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
         break;
       case ISA_AIX_0Ea :
       default :
-        Serial.println(F("ERROR: prog: compile: internal error (tag)")); 
+        Serial.println(F("ERROR: internal error (tag)")); 
         (*errors)++;
         return;
       }      
@@ -1133,18 +1132,18 @@ static void comp_compile_pass3( int * errors, int * warnings ) {
     if( cfs->flags & COMP_FLAGS_FSOTHER ) {
       // skip
     } else if( cfs->flags & COMP_FLAGS_FSUSE ) {
-      if( cfs->defx==0 ) { Serial.print(F("ERROR: prog: compile: no definition for \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.println(cfs->lix,HEX); (*errors)++; }
+      if( cfs->defx==0 ) { Serial.print(F("ERROR: no definition for \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.println(cfs->lix,HEX); (*errors)++; }
       comp_fs_t * cfs2= &comp_result.fs[cfs->defx];
       if( cfs->flags & COMP_FLAGS_TYPEBYTE ) {
-        if( ! (cfs2->flags & COMP_FLAGS_TYPEBYTE) ) { Serial.print(F("ERROR: prog: compile: \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" is used as byte but defined as word on line ")); Serial.println(cfs2->lix); (*errors)++; }
+        if( ! (cfs2->flags & COMP_FLAGS_TYPEBYTE) ) { Serial.print(F("ERROR: \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" is used as byte but defined as word on line ")); Serial.println(cfs2->lix); (*errors)++; }
       }
       if( cfs->flags & COMP_FLAGS_TYPEWORD ) {
-        if( ! (cfs2->flags & COMP_FLAGS_TYPEWORD) ) { Serial.print(F("ERROR: prog: compile: \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" is used as word but defined as byte on line ")); Serial.println(cfs2->lix); (*errors)++; }
+        if( ! (cfs2->flags & COMP_FLAGS_TYPEWORD) ) { Serial.print(F("ERROR: \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" is used as word but defined as byte on line ")); Serial.println(cfs2->lix); (*errors)++; }
       }
     } else if( cfs->flags & COMP_FLAGS_FSDEF ) {
       comp_fs_t * cfs2= &comp_result.fs[cfs->defx];
-      if( cfs->defx!=fsx ) { Serial.print(F("ERROR: prog: compile: double definition for \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" and ")); Serial.println(cfs2->lix,HEX);  (*errors)++; }
-      if( !( cfs->flags & COMP_FLAGS_REFD ) )  { Serial.print(F("WARNING: prog: compile: no usage of \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.println(cfs->lix,HEX);  (*warnings)++; }
+      if( cfs->defx!=fsx ) { Serial.print(F("ERROR: double definition for \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.print(cfs->lix,HEX); Serial.print(F(" and ")); Serial.println(cfs2->lix,HEX);  (*errors)++; }
+      if( !( cfs->flags & COMP_FLAGS_REFD ) )  { Serial.print(F("WARNING: no usage of \"")); Serial.print(&buf[0]); Serial.print(F("\" on line ")); Serial.println(cfs->lix,HEX);  (*warnings)++; }
     }
   }
 }
@@ -1163,20 +1162,20 @@ static void comp_compile_pass4( int * errors, int * warnings ) {
         uint16_t src_addr = comp_get_addr(lix)+2; 
         uint16_t dst_addr= op;
         if( ((dst_addr>src_addr)&&(dst_addr-src_addr>0x7f)) || ((dst_addr<src_addr)&&(src_addr-dst_addr>0x80)) ) {
-          Serial.print(F("ERROR: prog: compile: branch to far on line ")); Serial.println(lix,HEX); (*errors)++;
+          Serial.print(F("ERROR: branch to far on line ")); Serial.println(lix,HEX); (*errors)++;
         } else {
-          if( PAGE(src_addr)!=PAGE(dst_addr) ) { Serial.print(F("WARNING: prog: compile: branch to other page on line ")); Serial.print(lix,HEX); Serial.println(F(" has one clock tick penalty")); (*warnings)++; }
+          if( PAGE(src_addr)!=PAGE(dst_addr) ) { Serial.print(F("WARNING: branch to other page on line ")); Serial.print(lix,HEX); Serial.println(F(" has one clock tick penalty")); (*warnings)++; }
         } 
       }
       if( aix==ISA_AIX_REL && !(ln->inst.flags & LN_FLAG_ABSforREL) ) {
         // check if REL is to a different page: warning for extra clock tick
         uint16_t src_addr = comp_get_addr(lix)+2; 
         uint16_t dst_addr = src_addr+(int8_t)op;
-        if( PAGE(src_addr)!=PAGE(dst_addr) ) { Serial.print(F("WARNING: prog: compile: branch to other page on line ")); Serial.print(lix,HEX); Serial.println(F(" has one clock tick penalty")); (*warnings)++; }
+        if( PAGE(src_addr)!=PAGE(dst_addr) ) { Serial.print(F("WARNING: branch to other page on line ")); Serial.print(lix,HEX); Serial.println(F(" has one clock tick penalty")); (*warnings)++; }
       }      
-      if( aix==ISA_AIX_ABS && op<0x100 ) { Serial.print(F("WARNING: prog: compile: suggest ZPG instead of ABS on line ")); Serial.println(lix,HEX); (*warnings)++; }
-      if( aix==ISA_AIX_ABX && op<0x100 ) { Serial.print(F("WARNING: prog: compile: suggest ZPX instead of ABX on line ")); Serial.println(lix,HEX); (*warnings)++; }
-      if( aix==ISA_AIX_ABY && op<0x100 ) { Serial.print(F("WARNING: prog: compile: suggest ZPY instead of ABY on line ")); Serial.println(lix,HEX); (*warnings)++; }
+      if( aix==ISA_AIX_ABS && op<0x100 ) { Serial.print(F("WARNING: suggest ZPG instead of ABS on line ")); Serial.println(lix,HEX); (*warnings)++; }
+      if( aix==ISA_AIX_ABX && op<0x100 ) { Serial.print(F("WARNING: suggest ZPX instead of ABX on line ")); Serial.println(lix,HEX); (*warnings)++; }
+      if( aix==ISA_AIX_ABY && op<0x100 ) { Serial.print(F("WARNING: suggest ZPY instead of ABY on line ")); Serial.println(lix,HEX); (*warnings)++; }
       // todo: There is a sentence in the original 6502 datasheet, footnote 1 on page 6, eg for LDA 'ADD 1 TO "N" IF PAGE BOUNDARY IS CROSSED' do not yet understand
     }
   }
@@ -1190,7 +1189,7 @@ static void comp_compile_pass5( int * errors, int * warnings ) {
     if( comp_result.org[oix].addr1==comp_result.org[oix].addr2 ) {
       // .org section is empty
       if( oix==0 ) continue;
-      Serial.print(F("WARNING: prog: compile: .ORG section on line ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.println(F(" empty")); (*warnings)++;
+      Serial.print(F("WARNING: .ORG section on line ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.println(F(" empty")); (*warnings)++;
     } else {
       // .org section oix is not empty, does it overlap with any other
       for( uint8_t oix2=oix+1; oix2<comp_result.org_num; oix2++ ) if( comp_result.org[oix2].addr1!=comp_result.org[oix2].addr2 ) {
@@ -1198,7 +1197,7 @@ static void comp_compile_pass5( int * errors, int * warnings ) {
         bool a1= comp_result.org[oix2].addr1<=comp_result.org[oix].addr1 && comp_result.org[oix].addr1<comp_result.org[oix2].addr2;
         bool a2= comp_result.org[oix2].addr1<=comp_result.org[oix].addr2-1 && comp_result.org[oix].addr2-1<comp_result.org[oix2].addr2;
         if( a1 || a2 ) {
-          Serial.print(F("WARNING: prog: compile: .ORG section on line ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.print(F(" overlaps with the one on line ")); Serial.println(comp_result.org[oix2].lix,HEX); (*warnings)++;
+          Serial.print(F("WARNING: .ORG section on line ")); Serial.print(comp_result.org[oix].lix,HEX); Serial.print(F(" overlaps with the one on line ")); Serial.println(comp_result.org[oix2].lix,HEX); (*warnings)++;
         }
       }
       // does it contain the reset vector?
@@ -1206,8 +1205,8 @@ static void comp_compile_pass5( int * errors, int * warnings ) {
       found_fffd |= comp_result.org[oix].addr1<=0xfffd && 0xfffd<comp_result.org[oix].addr2;
     }
   }
-  if( ! found_fffc && ! found_fffd ) { Serial.println(F("WARNING: prog: compile: reset vector missing (FFFC and/or FFFD), assuming 0200")); (*warnings)++; }
-  else if( ! found_fffc || ! found_fffd ) { Serial.println(F("ERROR: prog: compile: reset vector corrupt")); (*errors)++; }
+  if( ! found_fffc && ! found_fffd ) { Serial.println(F("WARNING: reset vector missing (FFFC and/or FFFD), assuming 0200")); (*warnings)++; }
+  else if( ! found_fffc || ! found_fffd ) { Serial.println(F("ERROR: reset vector corrupt")); (*errors)++; }
   comp_result.add_reset_vector= ! found_fffc && ! found_fffd;
 }
 
@@ -1283,7 +1282,7 @@ static void comp_list( void ) {
   Serial.println();
   for(uint16_t lix=0; lix<ln_num; lix++) {
     if( oix+1<comp_result.org_num && comp_result.org[oix+1].lix==lix ) { // A new .ORG section
-      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf(buf,40,"%04x |             | section %x end\n",comp_result.org[oix].addr2, oix); Serial.print(buf); }
+      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf(buf,40,"%04x |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf); }
       oix++;
     }
     ln_t * ln= &ln_store[lix]; 
@@ -1323,7 +1322,7 @@ static void comp_list( void ) {
     } 
   }
   // print final .ORG section end
-  snprintf(buf,40,"%04x |             | section %x end\n",comp_result.org[oix].addr2, oix); Serial.print(buf);
+  snprintf(buf,40,"%04x |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf);
   // Vector?
   if( comp_result.add_reset_vector ) {
     Serial.println(F("FFFC | 00 02       | implicit section with reset vector")); 
@@ -1387,19 +1386,19 @@ static void cmdprog_list(int argc, char * argv[]) {
   if( argc==2 ) {
     num1=0; num2=ln_num-1; 
   } else if( argc==3 ) { 
-    if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: list: expected hex <num1>")); return; }
-    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: list: <num1> too high")); return; }
+    if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: expected hex <num1>")); return; }
+    if( num1>=ln_num ) { Serial.println(F("ERROR: <num1> too high")); return; }
     num2= num1;
   } else if( argc==4 ) {
     if( argv[2][0]=='-' && argv[2][1]=='\0' ) { num1=0; }
-    else if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: list: expected hex <num1>")); return; }
-    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: list: <num1> too high")); return; }
+    else if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: expected hex <num1>")); return; }
+    if( num1>=ln_num ) { Serial.println(F("ERROR: <num1> too high")); return; }
     if( argv[3][0]=='-' && argv[3][1]=='\0' ) { num2=ln_num-1; }    
-    else if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: prog: list: expected hex <num2>")); return; }
+    else if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: expected hex <num2>")); return; }
     if( num2>=ln_num ) num2=ln_num-1;
-    if( num2<num1 ) { Serial.println(F("ERROR: prog: list: <num2> less than <num1>")); return; }
+    if( num2<num1 ) { Serial.println(F("ERROR: <num2> less than <num1>")); return; }
   } else {
-    Serial.println(F("ERROR: prog: list: too many arguments")); return;
+    Serial.println(F("ERROR: too many arguments")); return;
   }
   char buf[40];
   if( ln_num>0 ) for(uint16_t i=num1; i<=num2; i++) {
@@ -1413,21 +1412,21 @@ static void cmdprog_list(int argc, char * argv[]) {
 static void cmdprog_delete(int argc, char * argv[]) {
   uint16_t num1, num2;
   if( argc==2 ) {
-    Serial.println(F("ERROR: prog: delete: expected <num1> and <num2>")); return;
+    Serial.println(F("ERROR: expected <num1> and <num2>")); return;
   } else if( argc==3 ) { 
-    if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: delete: expected hex <num1>")); return; }
-    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: delete: <num1> too high")); return; }
+    if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: expected hex <num1>")); return; }
+    if( num1>=ln_num ) { Serial.println(F("ERROR: <num1> too high")); return; }
     num2= num1;
   } else if( argc==4 ) {
     if( argv[2][0]=='-' && argv[2][1]=='\0' ) { num1=0; }
-    else if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: delete: expected hex <num1>")); return; }
-    if( num1>=ln_num ) { Serial.println(F("ERROR: prog: delete: <num1> too high")); return; }
+    else if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: expected hex <num1>")); return; }
+    if( num1>=ln_num ) { Serial.println(F("ERROR: <num1> too high")); return; }
     if( argv[3][0]=='-' && argv[3][1]=='\0' ) { num2=ln_num-1; }    
-    else if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: prog: delete: expected hex <num2>")); return; }
-    if( num2>=ln_num ) { Serial.println(F("ERROR: prog: delete: <num2> too high")); return; }
-    if( num2<num1 ) { Serial.println(F("ERROR: prog: delete: <num2> less than <num1>")); return; }
+    else if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: expected hex <num2>")); return; }
+    if( num2>=ln_num ) { Serial.println(F("ERROR: <num2> too high")); return; }
+    if( num2<num1 ) { Serial.println(F("ERROR: <num2> less than <num1>")); return; }
   } else {
-    Serial.println(F("ERROR: prog: delete: too many arguments")); return;
+    Serial.println(F("ERROR: too many arguments")); return;
   }
   // Delete `len` lines: num1..num2
   uint16_t len= num2-num1+1;
@@ -1441,21 +1440,21 @@ static void cmdprog_delete(int argc, char * argv[]) {
 }
 
 static void cmdprog_move(int argc, char * argv[]) {
-  if( argc<5 ) { Serial.println(F("ERROR: prog: move: expected 3 line numbers")); return; }
+  if( argc<5 ) { Serial.println(F("ERROR: expected 3 line numbers")); return; }
   uint16_t num1;
-  if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: prog: move: expected hex <num1>")); return; }    
+  if( !cmd_parse(argv[2],&num1) ) { Serial.println(F("ERROR: expected hex <num1>")); return; }    
   uint16_t num2;
-  if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: prog: move: expected hex <num2>")); return; }    
+  if( !cmd_parse(argv[3],&num2) ) { Serial.println(F("ERROR: expected hex <num2>")); return; }    
   uint16_t num3;
-  if( !cmd_parse(argv[4],&num3) ) { Serial.println(F("ERROR: prog: move: expected hex <num3>")); return; }    
-  if( num1>=ln_num ) { Serial.println(F("ERROR: prog: move: <num1> does not exist")); return; }
-  if( num2>=ln_num ) { Serial.println(F("ERROR: prog: move: <num2> does not exist")); return; }
-  if( num1>num2 ) { Serial.println(F("ERROR: prog: move: <num2> must be at least <num1>")); return; }
-  if( num3>=ln_num ) { Serial.println(F("ERROR: prog: move: <num3> to high")); return; }
-  if( num1<=num3 && num3<=num2 ) { Serial.println(F("ERROR: prog: move: <num3> can not be within <num1>..<num2>")); return; }
-  if( num3==num2+1 ) { Serial.println(F("ERROR: prog: move: move to same location ignored")); return; }
+  if( !cmd_parse(argv[4],&num3) ) { Serial.println(F("ERROR: expected hex <num3>")); return; }    
+  if( num1>=ln_num ) { Serial.println(F("ERROR: <num1> does not exist")); return; }
+  if( num2>=ln_num ) { Serial.println(F("ERROR: <num2> does not exist")); return; }
+  if( num1>num2 ) { Serial.println(F("ERROR: <num2> must be at least <num1>")); return; }
+  if( num3>=ln_num ) { Serial.println(F("ERROR: <num3> to high")); return; }
+  if( num1<=num3 && num3<=num2 ) { Serial.println(F("ERROR: <num3> can not be within <num1>..<num2>")); return; }
+  if( num3==num2+1 ) { Serial.println(F("ERROR: move to same location ignored")); return; }
   // Report result before num1 and num2 are changed
-  Serial.print(F("INFO: prog: move: moved ")); Serial.print(num2+1-num1); Serial.println(F(" lines")); 
+  Serial.print(F("INFO: moved ")); Serial.print(num2+1-num1); Serial.println(F(" lines")); 
   // Actual move
   while( num1<=num2 ) {
     ln_temp= ln_store[num1];
@@ -1477,7 +1476,7 @@ static void cmdprog_insert_stream(int argc, char * argv[]) {
   if( argc==0 ) { // no arguments toggles streaming mode
     if( cmd_get_streamfunc()==0 ) cmd_set_streamfunc(cmdprog_insert_stream); else cmd_set_streamfunc(0);
   } else {
-    if( ln_num>=LN_NUM ) { Serial.println(F("ERROR: prog: insert: out of line memory")); return; }
+    if( ln_num>=LN_NUM ) { Serial.println(F("ERROR: out of line memory")); return; }
     ln_t * ln= ln_parse(argc, argv);
     if( ln!=0 ) {
       for( uint16_t n=ln_num; n>cmdprog_insert_linenum; n-- ) ln_store[n]= ln_store[n-1];
@@ -1492,14 +1491,14 @@ static void cmdprog_insert_stream(int argc, char * argv[]) {
 
 static void cmdprog_compile(int argc, char * argv[]) {
   // prog compile [ list | install | map ]
-  if( argc>3 ) { Serial.println(F("ERROR: prog: comp: too many arguments"));  return; }
+  if( argc>3 ) { Serial.println(F("ERROR: too many arguments"));  return; }
   int cmd= 0;
   if( argc==3 ) {
     if( cmd_isprefix(PSTR("map"),argv[2]) ) cmd=1;
     else if( cmd_isprefix(PSTR("install"),argv[2]) ) cmd=2;
     else if( cmd_isprefix(PSTR("list"),argv[2]) ) cmd=3;
     else if( cmd_isprefix(PSTR("bin"),argv[2]) ) cmd=4;
-    else { Serial.println(F("ERROR: prog: unexpected arguments")); return; }
+    else { Serial.println(F("ERROR: unexpected arguments")); return; }
   }
   bool ok=comp_compile();
   if( cmd==0 ) { return; }
@@ -1518,8 +1517,8 @@ static void cmdprog_main(int argc, char * argv[]) {
       argc-=2; argv+=2; // skip 'prog insert addr'
     } else {
       uint16_t linenum;
-      if( !cmd_parse(argv[2],&linenum) ) { Serial.println(F("ERROR: prog: insert: expected hex <linenum>")); return; }    
-      if( linenum>ln_num ) { Serial.println(F("ERROR: prog: insert: <linenum> too high")); return; }
+      if( !cmd_parse(argv[2],&linenum) ) { Serial.println(F("ERROR: expected hex <linenum>")); return; }    
+      if( linenum>ln_num ) { Serial.println(F("ERROR: <linenum> too high")); return; }
       cmdprog_insert_linenum= linenum;
       argc-=3; argv+=3; // skip 'prog insert addr'
     }
@@ -1527,10 +1526,10 @@ static void cmdprog_main(int argc, char * argv[]) {
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("replace"),argv[1]) ) { 
-    if( argc<4 ) { Serial.println(F("ERROR: prog: replace: expected <linenum> and <line>")); return; }
+    if( argc<4 ) { Serial.println(F("ERROR: expected <linenum> and <line>")); return; }
     uint16_t linenum;
-    if( !cmd_parse(argv[2],&linenum) ) { Serial.println(F("ERROR: prog: replace: expected hex <linenum>")); return; }    
-    if( linenum>=ln_num ) { Serial.println(F("ERROR: prog: replace: <linenum> does not exist")); return; }
+    if( !cmd_parse(argv[2],&linenum) ) { Serial.println(F("ERROR: expected hex <linenum>")); return; }    
+    if( linenum>=ln_num ) { Serial.println(F("ERROR: <linenum> does not exist")); return; }
     ln_t * ln= ln_parse(argc-3, argv+3);
     if( ln!=0 ) { ln_del(&ln_store[linenum]);  ln_store[linenum]= *ln; }
     return;
@@ -1557,39 +1556,39 @@ static void cmdprog_main(int argc, char * argv[]) {
     if( argc>2 && cmd_isprefix(PSTR("strings"),argv[1]) ) fs_dump();
     return;
   }
-  Serial.println(F("ERROR: prog: unexpected arguments")); 
+  Serial.println(F("ERROR: unexpected arguments")); 
 }
 
 
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
 const char cmdprog_longhelp[] PROGMEM = 
-  "SYNTAX: prog insert [<linenum> [<line>] ]\n"
-  "- inserts <line> to program at position <linenum>\n"
-  "- if <line> is absent, starts streaming mode (empty line ends it)\n"
-  "- if <linenum> is absent, starts streaming mode at end of program\n"
-  "SYNTAX: prog replace <linenum> <line> ]\n"
-  "- overwrites the program at position <linenum> with <line>\n"
-  "SYNTAX: prog list [<num1> [<num2>]]\n"
-  "- lists the program from the line number <num1> to <num2>\n"
+  "SYNTAX: prog insert [<linenum> [<line>] ]\r\n"
+  "- inserts <line> to program at position <linenum>\r\n"
+  "- if <line> is absent, starts streaming mode (empty line ends it)\r\n"
+  "- if <linenum> is absent, starts streaming mode at end of program\r\n"
+  "SYNTAX: prog replace <linenum> <line> ]\r\n"
+  "- overwrites the program at position <linenum> with <line>\r\n"
+  "SYNTAX: prog list [<num1> [<num2>]]\r\n"
+  "- lists the program from the line number <num1> to <num2>\r\n"
   "- if both <num1> and <num2> absent lists whole program"
-  "- if <num2> is absent lists only line <num1>\n"
-  "- if both present, lists lines <num1> upto <num2>\n"
-  "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
-  "SYNTAX: prog move <num1> <num2> <num3>\n"
-  "- moves lines <num1> up to and including <num2> to just before <num3>\n"
-  "SYNTAX: prog delete <num1> [<num2>]\n"
-  "- deletes the program lines from the line number <num1> to <num2>\n"
-  "- if <num2> is absent deletes only line <num1>\n"
-  "- if both present, deletes lines <num1> upto <num2>\n"
-  "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\n"
-  "SYNTAX: prog compile [ list | install | map | bin ]\n"
-  "- compiles the program; giving info\n"
-  "- 'list' compiles and produces an instruction listing\n"
-  "- 'install' compiles and writes to memory\n"
-  "- 'map' compiles and produces a table of labels and sections\n"
-  "- 'bin' shows the generated binary\n"
-  "SYNTAX: prog stat [strings]\n"
-  "- shows the memory usage of the program (and optionally the string table)\n"
+  "- if <num2> is absent lists only line <num1>\r\n"
+  "- if both present, lists lines <num1> upto <num2>\r\n"
+  "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\r\n"
+  "SYNTAX: prog move <num1> <num2> <num3>\r\n"
+  "- moves lines <num1> up to and including <num2> to just before <num3>\r\n"
+  "SYNTAX: prog delete <num1> [<num2>]\r\n"
+  "- deletes the program lines from the line number <num1> to <num2>\r\n"
+  "- if <num2> is absent deletes only line <num1>\r\n"
+  "- if both present, deletes lines <num1> upto <num2>\r\n"
+  "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\r\n"
+  "SYNTAX: prog compile [ list | install | map | bin ]\r\n"
+  "- compiles the program; giving info\r\n"
+  "- 'list' compiles and produces an instruction listing\r\n"
+  "- 'install' compiles and writes to memory\r\n"
+  "- 'map' compiles and produces a table of labels and sections\r\n"
+  "- 'bin' shows the generated binary\r\n"
+  "SYNTAX: prog stat [strings]\r\n"
+  "- shows the memory usage of the program (and optionally the string table)\r\n"
 ;
 
 
