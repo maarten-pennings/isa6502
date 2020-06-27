@@ -7,11 +7,11 @@
 #include "isa.h"
 
 
-static int cmdman_findmid(const char*stack,const char*needle);
-// Returns 0 if needle is found at pos 0 of stack, otherwise returns -1.
+static int cmdman_findmid(const char*stack,const char*needle); // forward
+// Returns 0 if needle is found at pos 0 ("left") of stack, otherwise returns -1.
 // Note that needle may contain '?' (matches any char), or '*' matching 0 or more chars.
 // Note that stack is in PROGMEM and needle in RAM.
-static int cmdman_findleft(const char*stack,const char*needle) {
+static int cmdman_findleft(/*PROGMEM*/const char*stack,const char*needle) {
   //Serial.print("lft('"); Serial.print(f(stack)); Serial.print("','"); Serial.print(needle); Serial.println("')");   
   while( *needle!=0 ) {
     if( *needle=='*' ) { int p=cmdman_findmid(stack,needle+1); return p>=0?0:-1; }
@@ -27,7 +27,7 @@ static int cmdman_findleft(const char*stack,const char*needle) {
 // Returns position of needle in stack, otherwise returns -1.
 // Note that needle may contain '?' (matches any char), or '*' matching 0 or more chars.
 // Note that stack is in PROGMEM and needle in RAM.
-static int cmdman_findmid(const char*stack,const char*needle) {
+static int cmdman_findmid(/*PROGMEM*/const char*stack,const char*needle) {
   //Serial.print("mid('"); Serial.print(f(stack)); Serial.print("','"); Serial.print(needle); Serial.println("')");   
   if( *needle==0 ) { return 0; }
   int ix=0;
@@ -42,6 +42,7 @@ static int cmdman_findmid(const char*stack,const char*needle) {
 
 
 #define CMDMAN_NAMESPERLINE 16
+// Prints a list of all instruction types and all addressing modes
 static void cmdman_printindex() {
   int n;
   // Instructions
@@ -65,6 +66,7 @@ static void cmdman_printindex() {
 }
 
 
+// Prints a list of all registers (and the PSR flags)
 static void cmdman_printregs() {
   Serial.println( F("A   - accumulator") ); 
   Serial.println( F("X   - index register") ); 
@@ -84,6 +86,7 @@ static void cmdman_printregs() {
 }
 
 
+// Prints the details of instruction type with index `ìix`
 static void cmdman_printinstruction(int iix) {
   cmd_printf_P( PSTR("name: %S (instruction)\n"), isa_instruction_iname(iix) );  
   cmd_printf_P( PSTR("desc: %S\n"), isa_instruction_desc(iix) ); 
@@ -98,6 +101,7 @@ static void cmdman_printinstruction(int iix) {
 }
 
 
+// Prints the details of addressing mode with index `aix`
 static void cmdman_printaddrmode(int aix) {
   cmd_printf_P( PSTR("name: %S (addressing mode)\n"), isa_addrmode_aname(aix) );  
   cmd_printf_P( PSTR("desc: %S\n"), isa_addrmode_desc(aix) );  
@@ -117,11 +121,16 @@ static void cmdman_printaddrmode(int aix) {
 }
 
 
+// Prints the details of opcode (instruction variant) `opcode`
 static void cmdman_printopcode(uint8_t opcode) {
   uint8_t iix= isa_opcode_iix(opcode);
   uint8_t aix= isa_opcode_aix(opcode);
+  if( iix==ISA_IIX_0Ei || aix==ISA_AIX_0Ea ) { 
+    cmd_printf_P( PSTR("name: not in use (opcode %02X)\n"), opcode );
+    return;
+  }
   cmd_printf_P( PSTR("name: %S.%S (opcode %02X)\n"), isa_instruction_iname(iix), isa_addrmode_aname(aix), opcode );
-  cmd_printf_P( PSTR("sntx: %S%S\n"), isa_instruction_iname(iix), isa_addrmode_syntax(aix)+3 ); // +3 to skip OPC
+  cmd_printf_P( PSTR("sntx: %S%S\n"), isa_instruction_iname(iix), isa_addrmode_syntax(aix)+3 ); // +3 to skip "OPC"
   cmd_printf_P( PSTR("desc: %S - %S\n"), isa_instruction_desc(iix), isa_addrmode_desc(aix) );
   cmd_printf_P( PSTR("help: %S\n"), isa_instruction_help(iix) );  
   cmd_printf_P( PSTR("flag: %S\n"), isa_instruction_flags(iix) );  
@@ -139,6 +148,7 @@ static void cmdman_printopcode(uint8_t opcode) {
 }
 
 
+// Prints a list of instruction types (with description) that match search term `word`
 static void cmdman_printfind(char * word) {
   int n= 0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
@@ -149,13 +159,14 @@ static void cmdman_printfind(char * word) {
     }
   }
   if( n==0 ) {
-    cmd_printf_P( PSTR("nothing found\n") ); 
+    cmd_printf_P( PSTR("no instructions found for '%s'\n"), word ); 
   } else {
-    cmd_printf_P( PSTR("found %d results\n"), n ); 
+    cmd_printf_P( PSTR("found %d instructions\n"), n ); 
   }
 }
 
 
+// Prints a 16x16 table of all opcodes
 static void cmdman_printtable_opcode_line() {
   Serial.print(F("+--+"));
   for( int x=0; x<16; x++ ) {
@@ -193,6 +204,7 @@ static void cmdman_printtable_opcode() {
 }
 
 
+// Prints a table of all instructions types with a columns for all addressing modes
 static void cmdman_printtable_inst_line() {
   Serial.print(F("+---+"));
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
@@ -200,16 +212,19 @@ static void cmdman_printtable_inst_line() {
   }
   Serial.println();
 }
-static void cmdman_printtable_inst(const char * pattern) {
+static void cmdman_printtable_inst_header() {
   cmdman_printtable_inst_line();
   Serial.print(F("|   |"));
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
     Serial.print(f(isa_addrmode_aname(aix))); Serial.print('|');
   }
   Serial.println();
+}
+static void cmdman_printtable_inst(const char * pattern) {
   int n= 0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
     if( cmdman_findmid(isa_instruction_iname(iix),pattern)==-1 ) continue;
+    if( n==0 ) cmdman_printtable_inst_header();
     if( n%8==0 ) cmdman_printtable_inst_line();
     Serial.print('|');
     Serial.print(f(isa_instruction_iname(iix))); 
@@ -224,13 +239,18 @@ static void cmdman_printtable_inst(const char * pattern) {
     Serial.println();
     n++;
   }
-  cmdman_printtable_inst_line();
+  if( n==0 ) {
+    cmd_printf_P( PSTR("no matching instructions found for '%s'\n"), pattern ); 
+  } else {
+    cmdman_printtable_inst_line();
+    cmd_printf_P( PSTR("found %d instructions\n"), n ); 
+  }
 }
 
 
 // The handler for the "man" command
 static void cmdman_main(int argc, char * argv[]) {
-  // Note cmd_isprefix needs a PROGMEM string. PSTR stores the string in PROGMEM.
+  // Note cmd_isprefix needs a PROGMEM string. PSTR stores a string in PROGMEM.
   if( argc==1 ) { 
     cmdman_printindex();
     return;
@@ -262,17 +282,17 @@ static void cmdman_main(int argc, char * argv[]) {
     uint16_t opcode;
     bool ok= cmd_parse(argv[1],&opcode);
     if( ok && opcode<=0xff) { cmdman_printopcode(opcode); return; }
-    Serial.println(F("ERROR: must have <inst>, <addrmode>, or <hexnum> in range 0..ff"));
+    Serial.println(F("ERROR: must have <inst>, <addrmode>, <hexnum>; or a subcommand"));
     return;
   }
   if( argc==3 ) { 
     int iix= isa_instruction_find(argv[1]);
-    if( iix==0 ) { Serial.println(F("ERROR: <inst> <addrmode>: <inst> does not exist")); return; }
+    if( iix==0 ) { cmd_printf_P( PSTR("ERROR: instruction '%s' does not exist\n"), argv[1]); return; }
     int aix= isa_addrmode_find(argv[2]);
-    if( aix==0 ) { Serial.println(F("ERROR: <inst> <addrmode>: <addrmode> does not exist")); return; }
+    if( aix==0 ) { cmd_printf_P( PSTR("ERROR: addressing mode '%s' does not exist\n"), argv[2]); return; }
     uint8_t opcode= isa_instruction_opcodes(iix,aix ); 
-    if( opcode!=ISA_OPCODE_INVALID ) { cmdman_printopcode(opcode); return; }
-    Serial.println(F("ERROR: <inst> <addrmode>: <inst> does not have <addrmode>")); 
+    if( opcode==ISA_OPCODE_INVALID ) { cmd_printf_P( PSTR("ERROR: instruction '%s' does not have addressing mode '%s'\n"), argv[1], argv[2]); return;}
+    cmdman_printopcode(opcode); 
     return; 
   }
   Serial.println(F("ERROR: unexpected arguments")); 
