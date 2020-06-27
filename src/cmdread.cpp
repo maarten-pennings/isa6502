@@ -36,22 +36,22 @@ static void cmdread_main( int argc, char * argv[] ) {
   if( argv[1][0]=='-' && argv[1][1]=='\0' ) 
     addr= cmdread_addr;
   else 
-    if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\n"),argv[1]); return; }
+    if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\r\n"),argv[1]); return; }
   if( argc==2 ) { cmdread_read(addr,CMDREAD_NUM); return; }
   // Parse num
   uint16_t num;
-  if( !cmd_parse(argv[2],&num) ) { cmd_printf_P(PSTR("ERROR: expected hex <num>, not '%s'\n"), argv[2]); return; }
+  if( !cmd_parse(argv[2],&num) ) { cmd_printf_P(PSTR("ERROR: expected hex <num>, not '%s'\r\n"), argv[2]); return; }
   if( argc==3 ) { cmdread_read(addr,num); return; }
   Serial.println(F("ERROR: too many arguments"));
 }
 
 
 static const char cmdread_longhelp[] PROGMEM = 
-  "SYNTAX: read [ <addr> [ <num> ] ]\n"
-  "- reads <num> bytes from memory, starting at location <addr>\n"
-  "- when <num> is absent, it defaults to 40\n"
-  "- when <addr> is absent or -, it defaults to \"previous\" address\n"
-  "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\n"
+  "SYNTAX: read [ <addr> [ <num> ] ]\r\n"
+  "- reads <num> bytes from memory, starting at location <addr>\r\n"
+  "- when <num> is absent, it defaults to 40\r\n"
+  "- when <addr> is absent or -, it defaults to \"previous\" address\r\n"
+  "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\r\n"
 ;
 
   

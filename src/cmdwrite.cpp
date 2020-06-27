@@ -81,7 +81,7 @@ exit: // print ignore message and update prompt
 static void cmdwrite_main(int argc, char * argv[]) {
   uint16_t addr;
   if( argc<2 ) {  Serial.println(F("ERROR: insufficient arguments (<addr>)")); return; }
-  if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\n"),argv[1]); return; }
+  if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\r\n"),argv[1]); return; }
   cmdwrite_addr= addr;
   cmdwrite_notify(addr); // Notify lowest changed address
   cmdwrite_stream(argc-2,argv+2); // skip 'write addr'
@@ -90,16 +90,16 @@ static void cmdwrite_main(int argc, char * argv[]) {
 
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
 static const char cmdwrite_longhelp[] PROGMEM = 
-  "SYNTAX: write <addr> <data>...\n"
-  "- writes the <data> byte to memory location <addr>\n"
-  "- multiple <data> bytes allowed (auto increment of <addr>)\n"
-  "- if <data> is absent, starts streaming mode (empty line ends it)\n"
-  "- <data> can also be a 'seq' or 'read' macro\n"
-  "- use 'seq <data> <num>' to write <num> times <data>\n"
-  "- use 'read <addr> <num>' to copy <num> bytes from <addr>\n"
-  "NOTE:\n"
-  "- <data> is 00..FF\n"
-  "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\n"
+  "SYNTAX: write <addr> <data>...\r\n"
+  "- writes the <data> byte to memory location <addr>\r\n"
+  "- multiple <data> bytes allowed (auto increment of <addr>)\r\n"
+  "- if <data> is absent, starts streaming mode (empty line ends it)\r\n"
+  "- <data> can also be a 'seq' or 'read' macro\r\n"
+  "- use 'seq <data> <num>' to write <num> times <data>\r\n"
+  "- use 'read <addr> <num>' to copy <num> bytes from <addr>\r\n"
+  "NOTE:\r\n"
+  "- <data> is 00..FF\r\n"
+  "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\r\n"
 ;
 
 

@@ -42,7 +42,7 @@ static void cmdasm_stream( int argc, char * argv[] ) {
   } else {
     // Get Mnemonic  
     int iix= isa_instruction_find(argv[0]);
-    if( iix==0 ) { cmd_printf_P(PSTR("ERROR: unknown mnemonic '%s'\n"),argv[0]); return; }
+    if( iix==0 ) { cmd_printf_P(PSTR("ERROR: unknown mnemonic '%s'\r\n"),argv[0]); return; }
     // Parse operand syntax to find addressing mode
     if( argc==1 ) buf[0]='\0'; else strncpy(buf, argv[1], sizeof buf );
     int aix= isa_parse(buf);
@@ -51,17 +51,17 @@ static void cmdasm_stream( int argc, char * argv[] ) {
     bool rel_as_abs= isa_instruction_opcodes(iix,ISA_AIX_REL)!=ISA_OPCODE_INVALID && aix==ISA_AIX_ABS;
     if( rel_as_abs ) aix=ISA_AIX_REL; // We accept ABS notation for REL-only instructions
     uint8_t opcode= isa_instruction_opcodes(iix,aix);
-    if( opcode==ISA_OPCODE_INVALID ) { cmd_printf_P(PSTR("ERROR: instruction '%s' does not have addressing mode %S\n"),argv[0],isa_addrmode_aname(aix)); return; }
+    if( opcode==ISA_OPCODE_INVALID ) { cmd_printf_P(PSTR("ERROR: instruction '%s' does not have addressing mode %S\r\n"),argv[0],isa_addrmode_aname(aix)); return; }
     // Check operand size
     uint16_t op;
     int bytes= isa_addrmode_bytes(aix);
     if( bytes>1 ) { // todo: what is buf here?
-      if( !cmd_parse(buf,&op) ) { cmd_printf_P(PSTR("ERROR: operand must be <hex>, not '%s'\n"),buf); return; }
-      if( rel_as_abs ) { op= op-(cmdasm_addr+2); if( 0x7f<op && op<0xff80 ) { cmd_printf_P(PSTR("ERROR: ABS address too far (%X), need 80..7F\n"),op); return; } op&=0xFF; }
-      if( !rel_as_abs && bytes==2 && op>0xff ) { cmd_printf_P(PSTR("ERROR: operand must be 00..ff, not '%s'\n"),buf); return; }
+      if( !cmd_parse(buf,&op) ) { cmd_printf_P(PSTR("ERROR: operand must be <hex>, not '%s'\r\n"),buf); return; }
+      if( rel_as_abs ) { op= op-(cmdasm_addr+2); if( 0x7f<op && op<0xff80 ) { cmd_printf_P(PSTR("ERROR: ABS address too far (%X), need 80..7F\r\n"),op); return; } op&=0xFF; }
+      if( !rel_as_abs && bytes==2 && op>0xff ) { cmd_printf_P(PSTR("ERROR: operand must be 00..ff, not '%s'\r\n"),buf); return; }
     }
     // Check
-    if( argc>2 ) { cmd_printf_P(PSTR("ERROR: text after operand ('%s')\n"),argv[2]); return; }
+    if( argc>2 ) { cmd_printf_P(PSTR("ERROR: text after operand ('%s')\r\n"),argv[2]); return; }
     // Now assemble
     if( bytes>=1 ) { mem_write(cmdasm_addr++, opcode); }
     if( bytes>=2 ) { mem_write(cmdasm_addr++, op&0xFF); }
@@ -100,17 +100,17 @@ static void cmdasm_main( int argc, char * argv[] ) {
 
 
 static const char cmdasm_longhelp[] PROGMEM = 
-  "SYNTAX: asm [ <addr> ] [ <inst> ]\n"
-  "- assembles instruction <inst>, and write it to memory location <addr>\n"
-  "- if <inst> is absent, starts streaming mode, one instruction per line\n"
-  "- streaming mode ends with an empty line\n"
-  "- if <addr> is absent, continues with previous address\n"
-  "NOTE:\n"
-  "- <inst> is <mnenemonic> <operand>\n"
-  "- <mnenemonic> is one of the 3 letter opcode abbreviations\n"
-  "- <operand> syntax determines addressing mode\n"
-  "- in streaming mode '-' undoes previous instruction\n"
-  "- <addr> is 0000..FFFF, but physical memory is limited and mirrored\n"
+  "SYNTAX: asm [ <addr> ] [ <inst> ]\r\n"
+  "- assembles instruction <inst>, and write it to memory location <addr>\r\n"
+  "- if <inst> is absent, starts streaming mode, one instruction per line\r\n"
+  "- streaming mode ends with an empty line\r\n"
+  "- if <addr> is absent, continues with previous address\r\n"
+  "NOTE:\r\n"
+  "- <inst> is <mnenemonic> <operand>\r\n"
+  "- <mnenemonic> is one of the 3 letter opcode abbreviations\r\n"
+  "- <operand> syntax determines addressing mode\r\n"
+  "- in streaming mode '-' undoes previous instruction\r\n"
+  "- <addr> is 0000..FFFF, but physical memory is limited and mirrored\r\n"
 ;
   
  
