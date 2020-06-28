@@ -48,8 +48,8 @@ static void cmdman_printindex() {
   // Instructions
   n= 0;
   for( int iix= ISA_IIX_FIRST; iix<ISA_IIX_LAST; iix++ ) {
-    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("inst: "));
-    Serial.print(f(isa_instruction_iname(iix))); Serial.print(' ');
+    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("inst:"));
+    cmd_printf_P( PSTR(" %S"), isa_instruction_iname(iix) );
     if( (n+1)%CMDMAN_NAMESPERLINE==0 ) Serial.println();
     n++;
   }
@@ -57,8 +57,8 @@ static void cmdman_printindex() {
   // Addrmodes
   n= 0;
   for( int aix= ISA_AIX_FIRST; aix<ISA_AIX_LAST; aix++ ) {
-    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("addr: "));
-    Serial.print(f(isa_addrmode_aname(aix))); Serial.print(' ');
+    if( n%CMDMAN_NAMESPERLINE==0 ) Serial.print(F("addr:"));
+    cmd_printf_P( PSTR(" %S"), isa_addrmode_aname(aix) );
     if( (n+1)%CMDMAN_NAMESPERLINE==0 ) Serial.println();
     n++;
   }
