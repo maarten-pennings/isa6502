@@ -1,4 +1,4 @@
-# This file contains the test cases for the isa6502prog example
+# cmd_test.py - test cases for the isa6502prog example
 # https://docs.python.org/3/library/unittest.html
 
 import cmd

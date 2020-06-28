@@ -1,8 +1,12 @@
 # isa6502
-Arduino library with tables describing 6502 instruction set architecture (ISA).
 
-The library includes commands (for a separate command interpreter) that implement a man page browser (for the instructions), 
-an in-line disassembler, and even a simple assembler.
+Arduino library with tables describing the 6502 instruction set architecture (ISA).
+
+The library also includes commands (for a separate command interpreter) 
+that implement a man page browser (for the instructions), an in-line assembler/disassembler, 
+and even a simple "file" based assembler.
+
+There is a [test](test/#readme.md) suite for the commands.
 
 ## Introduction
 
