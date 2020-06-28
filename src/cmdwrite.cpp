@@ -50,7 +50,7 @@ static void cmdwrite_stream( int argc, char * argv[] ) {
           cmdwrite_addr++; addr++; num--;
         }        
       } else { // copy backward in order to not overwrite self
-        uint16_t dest=cmdwrite_addr+num; addr+=num;
+        uint16_t dest=cmdwrite_addr+num-1; addr+=num-1;
         while( num>0 ) {
           mem_write(dest, mem_read(addr) );
           cmdwrite_addr++; dest--; addr--; num--;
@@ -80,7 +80,7 @@ exit: // print ignore message and update prompt
 // The command handler for the "write" command
 static void cmdwrite_main(int argc, char * argv[]) {
   uint16_t addr;
-  if( argc<2 ) {  Serial.println(F("ERROR: insufficient arguments (<addr>)")); return; }
+  if( argc<2 ) { cmd_printf_P(PSTR("ERROR: insufficient arguments, need <addr>\r\n")); return; }
   if( !cmd_parse(argv[1],&addr) ) { cmd_printf_P(PSTR("ERROR: expected hex <addr>, not '%s'\r\n"),argv[1]); return; }
   cmdwrite_addr= addr;
   cmdwrite_notify(addr); // Notify lowest changed address
@@ -97,7 +97,7 @@ static const char cmdwrite_longhelp[] PROGMEM =
   "- <data> can also be a 'seq' or 'read' macro\r\n"
   "- use 'seq <data> <num>' to write <num> times <data>\r\n"
   "- use 'read <addr> <num>' to copy <num> bytes from <addr>\r\n"
-  "NOTE:\r\n"
+  "NOTES:\r\n"
   "- <data> is 00..FF\r\n"
   "- <addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored\r\n"
 ;

@@ -443,6 +443,235 @@ class Test_man(unittest.TestCase):
     self.assertIn("PCH -",r) 
     self.assertIn("PSR -",r) 
 
+##########################################################################
+### read
+##########################################################################
+
+class Test_read(unittest.TestCase):
+  def setUp(self):
+    self.cmd= cmd.Cmd(port)
+    
+  def tearDown(self):
+    self.cmd.close()
+    self.cmd= None
+
+  # Commands and arguments may be shortened.
+  def test_shorten(self):
+    self.cmd.exec("write 0200 11 22 33") # ensure we know what we read
+    r= self.cmd.exec("r 0200 3") 
+    self.assertIn("0200: 11 22 33\r\n",r) 
+
+  # The long help gives details
+  def test_longhelp(self):
+    r= self.cmd.exec("help read")
+    # Check if all sections are there
+    self.assertIn("SYNTAX: read",r) 
+    # Check notes
+    self.assertIn("<addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored",r) 
+
+  # Erroneous args
+  def test_errargs(self):
+    r= self.cmd.exec("read foo")
+    self.assertIn("ERROR: expected hex <addr>, not 'foo'\r\n",r) 
+    r= self.cmd.exec("read 0200 bar")
+    self.assertIn("ERROR: expected hex <num>, not 'bar'\r\n",r) 
+    r= self.cmd.exec("read 0200 10 baz")
+    self.assertIn("ERROR: too many arguments\r\n",r) 
+
+  ## Test for main features ##############################################
+  
+  # The 'read' command has default addr and num
+  def test_read(self):
+    self.cmd.exec("write 0280 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF") 
+    self.cmd.exec("write 0240 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF") 
+    self.cmd.exec("write 0200 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF") 
+    # addr from last write (default size)
+    r= self.cmd.exec("read") 
+    self.assertIn("0200: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF\r\n",r) 
+    self.assertIn("0220: ",r) 
+    self.assertIn("0230: ",r) 
+    self.assertNotIn("0240: ",r) 
+    # addr from last read (default size)
+    r= self.cmd.exec("read") 
+    self.assertIn("0240: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF\r\n",r) 
+    self.assertIn("0250: ",r) 
+    self.assertIn("0260: ",r) 
+    self.assertIn("0270: ",r) 
+    self.assertNotIn("0280: ",r) 
+    # addr from last read (set size)
+    r= self.cmd.exec("read - 2") 
+    self.assertEqual("0280: 00 11\r\n",r) 
+    r= self.cmd.exec("read - 2") 
+    self.assertEqual("0282: 22 33\r\n",r) 
+    # addr from last read (border case)
+    r= self.cmd.exec("read - ") 
+    self.assertIn("0284: 44 55 66",r) 
+    self.assertIn("0294: ",r) 
+    self.assertIn("02A4: ",r) 
+    self.assertIn("02B4: ",r) 
+    self.assertNotIn("02C4: ",r) 
+    # addr from last read (explicit)
+    r= self.cmd.exec("read 20A 04") 
+    self.assertEqual("020A: AA BB CC DD\r\n",r) 
+    r= self.cmd.exec("read - 01") 
+    self.assertEqual("020E: EE\r\n",r) 
+    # addr from last read (borde case)
+    r= self.cmd.exec("read 240 00") 
+    self.assertEqual("",r) 
+
+  # The 'read' command also continues from assembler
+  def test_sub(self):
+    self.cmd.exec("write 0200 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF") 
+    self.cmd.exec("asm 202 NOP")
+    # addr from last asm
+    r= self.cmd.exec("read - 2") 
+    self.assertIn("0202: EA 33\r\n",r) 
+
+##########################################################################
+### write
+##########################################################################
+
+class Test_write(unittest.TestCase):
+  def setUp(self):
+    self.cmd= cmd.Cmd(port)
+    
+  def tearDown(self):
+    self.cmd.close()
+    self.cmd= None
+
+  # Commands and arguments may be shortened.
+  def test_shorten(self):
+    # shorten 'write'
+    self.cmd.exec("w 0200 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
+    r= self.cmd.exec("r 0200 10") 
+    self.assertEqual("0200: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF\r\n",r) 
+    # shorten 'read' inside `write`
+    self.cmd.exec("w 20A r 202 03")
+    r= self.cmd.exec("r 0200 10") 
+    self.assertEqual("0200: 00 11 22 33 44 55 66 77 88 99 22 33 44 DD EE FF\r\n",r) 
+    # shorten 'seq' inside `write`
+    self.cmd.exec("w 202 s A5 03")
+    r= self.cmd.exec("r 0200 10") 
+    self.assertEqual("0200: 00 11 A5 A5 A5 55 66 77 88 99 22 33 44 DD EE FF\r\n",r) 
+
+  # The long help gives details
+  def test_longhelp(self):
+    r= self.cmd.exec("help write")
+    # Check if all sections are there
+    self.assertIn("SYNTAX: write",r) 
+    self.assertIn("NOTES:",r) 
+    # Check notes
+    self.assertIn("<addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored",r) 
+
+  # Erroneous args main
+  def test_errargs_main(self):
+    r= self.cmd.exec("write")
+    self.assertEqual("ERROR: insufficient arguments, need <addr>\r\n",r) 
+    r= self.cmd.exec("write foo")
+    self.assertEqual("ERROR: expected hex <addr>, not 'foo'\r\n",r) 
+    r= self.cmd.exec("write 200 222 33")
+    self.assertEqual("ERROR: <data> must be 00..FF, not '222', rest ignored\r\n",r) 
+    r= self.cmd.exec("write 200 foo")
+    self.assertEqual("ERROR: <data> must be 00..FF, not 'foo', ignored\r\n",r) 
+
+  # Erroneous args seq
+  def test_errargs_seq(self):
+    r= self.cmd.exec("write 200 seq")
+    self.assertEqual("ERROR: seq must have <data>, ignored\r\n",r) 
+    r= self.cmd.exec("write 200 seq foo")
+    self.assertEqual("ERROR: seq must have <data> and <num>, ignored\r\n",r) 
+    r= self.cmd.exec("write 200 seq foo bar")
+    self.assertEqual("ERROR: seq <data> must be 00..FF, not 'foo', ignored\r\n",r) 
+    r= self.cmd.exec("write 200 seq A5 bar")
+    self.assertEqual("ERROR: seq <num> must be 0000..FFFF, not 'bar', ignored\r\n",r) 
+    r= self.cmd.exec("write 200 seq 333 bar 22")
+    self.assertEqual("ERROR: seq <data> must be 00..FF, not '333', rest ignored\r\n",r) 
+
+  # Erroneous args read
+  def test_errargs_read(self):
+    r= self.cmd.exec("write 200 read")
+    self.assertEqual("ERROR: read must have <addr>, ignored\r\n",r) 
+    r= self.cmd.exec("write 200 read foo")
+    self.assertEqual("ERROR: read must have <addr> and <num>, ignored\r\n",r) 
+    r= self.cmd.exec("write 200 read foo bar")
+    self.assertEqual("ERROR: read <addr> must be 0000..FFFF, not 'foo', ignored\r\n",r) 
+    r= self.cmd.exec("write 200 read A5A5 bar")
+    self.assertEqual("ERROR: read <num> must be 0000..FFFF, not 'bar', ignored\r\n",r) 
+  
+  ## Test for main features ##############################################
+  
+  # The write command writes bytes to memory (plain)
+  def test_write_plain(self) :
+    # write 16 bytes
+    self.cmd.exec("write 0000 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
+    r= self.cmd.exec("read 0000 10") 
+    self.assertEqual("0000: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF\r\n",r) 
+    # write 8 bytes on border
+    self.cmd.exec("write FFFC 18 19 1A 1B 1c 1d 1e 1f")
+    r= self.cmd.exec("read FFFC 14") 
+    self.assertEqual("FFFC: 18 19 1A 1B 1C 1D 1E 1F 44 55 66 77 88 99 AA BB\r\n000C: CC DD EE FF\r\n",r) 
+    # write 1 byte
+    self.cmd.exec("write 0005 25")
+    r= self.cmd.exec("read 0004 3") 
+    self.assertEqual("0004: 44 25 66\r\n",r) 
+
+  # The write command writes bytes to memory (seq)
+  def test_write_plain(self) :
+    # write 16 bytes
+    self.cmd.exec("write 0000 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
+    r= self.cmd.exec("read 0000 10") 
+    self.assertEqual("0000: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF\r\n",r) 
+    # seq 6 bytes on border
+    self.cmd.exec("write FFFC 18 seq C0 6 1f")
+    r= self.cmd.exec("read FFFC 10") 
+    self.assertEqual("FFFC: 18 C0 C0 C0 C0 C0 C0 1F 44 55 66 77 88 99 AA BB\r\n",r) 
+    # seq 1 byte
+    self.cmd.exec("write 8 seq 00 1")
+    r= self.cmd.exec("read 0007 3") 
+    self.assertEqual("0007: 77 00 99\r\n",r) 
+    # seq 0 byte
+    self.cmd.exec("write 00A seq ee 0")
+    r= self.cmd.exec("read 0009 3") 
+    self.assertEqual("0009: 99 AA BB\r\n",r) 
+
+  # The write command writes bytes to memory (read)
+  def test_write_plain(self) :
+    # read 4 bytes forwards
+    self.cmd.exec("write 0000 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
+    self.cmd.exec("write 0002 12 read 005 4 17")
+    r= self.cmd.exec("read 0000 10") 
+    self.assertEqual("0000: 00 11 12 55 66 77 88 17 88 99 AA BB CC DD EE FF\r\n",r) 
+    # read 4 bytes backwards
+    self.cmd.exec("write 0000 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
+    self.cmd.exec("write 0008 18 read 006 4 1d") # after write 18, we have ... 55 66 77 18 99 AA ... so we read 66 77 18 99
+    r= self.cmd.exec("read 0000 10") 
+    self.assertEqual("0000: 00 11 22 33 44 55 66 77 18 66 77 18 99 1D EE FF\r\n",r) 
+    # read 1 byte
+    self.cmd.exec("write 2 read 1 1")
+    r= self.cmd.exec("read 0000 4") 
+    self.assertEqual("0000: 00 11 11 33\r\n",r) 
+    # read 0 byte
+    self.cmd.exec("write 5 read 1 0")
+    r= self.cmd.exec("read 0004 3") 
+    self.assertEqual("0004: 44 55 66\r\n",r) 
+
+  # The write command writes bytes to memory (stream)
+  def test_write_stream(self) :
+    # write streaming mode
+    self.cmd.exec("write 0600 seq 5A 10")
+    r= self.cmd.exec("write 0600", "> ")
+    self.assertEqual("W:0600",r) 
+    r= self.cmd.exec("22", "> ")
+    self.assertEqual("W:0601",r) 
+    r= self.cmd.exec("222", "W:0601> ") # hack: error text has "<data> must", so contains "> "
+    self.assertEqual("ERROR: <data> must be 00..FF, not '222', ignored\r\n",r) 
+    r= self.cmd.exec("33 44 55", "> ")
+    self.assertEqual("W:0604",r) 
+    r= self.cmd.exec("")
+    self.assertEqual("",r) 
+    r= self.cmd.exec("read 0600 07") 
+    self.assertEqual("0600: 22 33 44 55 5A 5A 5A\r\n",r) 
+
 # ##########################################################################
 # ### Xxx
 # ##########################################################################
@@ -486,11 +715,10 @@ class Test_man(unittest.TestCase):
 #     r= self.cmd.exec("xxx")
 #     self.assertIn("...xxx...",r) 
 # 
-#   # The sub commadn ...
+#   # The sub command ...
 #   def test_sub(self):
 #     r= self.cmd.exec("xxx yyy")
 #     self.assertIn("...yyy...",r) 
-# 
 
 if __name__ == '__main__':
   unittest.main()
