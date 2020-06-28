@@ -108,7 +108,7 @@ class Cmd:
     def isopen(self):
         """Returns true if the serial port to the dongle is open."""
         return not self.serial is None
-    def exec(self,icmd,isync="\r\n>> "):
+    def exec(self,icmd,isync=">> "):
         """Send command 'icmd' to the command interpreter; waiting for dongle response to have 'isync'. Returns response up to 'isync'."""
         cmd= icmd.encode(); sync= isync.encode() # Convert strings to bytes
         self.serial.write(cmd+b"\r") # Send bytes with <CR> to command interpreter
