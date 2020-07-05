@@ -46,12 +46,12 @@ static void cmdasm_stream( int argc, char * argv[] ) {
     // Parse operand syntax to find addressing mode
     if( argc==1 ) buf[0]='\0'; else strncpy(buf, argv[1], sizeof buf );
     int aix= isa_parse(buf);
-    if( aix==0 ) { cmd_printf_P(PSTR("ERROR: syntax error in operand '%s'"),buf); return; }
+    if( aix==0 ) { cmd_printf_P(PSTR("ERROR: syntax error in operand '%s'\r\n"),buf); return; }
     // We now have instruction type and addressing mode, does the combo map to an opcode?
     bool rel_as_abs= isa_instruction_opcodes(iix,ISA_AIX_REL)!=ISA_OPCODE_INVALID && aix==ISA_AIX_ABS;
     if( rel_as_abs ) aix=ISA_AIX_REL; // We accept ABS notation for REL-only instructions
     uint8_t opcode= isa_instruction_opcodes(iix,aix);
-    if( opcode==ISA_OPCODE_INVALID ) { cmd_printf_P(PSTR("ERROR: instruction '%s' does not have addressing mode %S\r\n"),argv[0],isa_addrmode_aname(aix)); return; }
+    if( opcode==ISA_OPCODE_INVALID ) { cmd_printf_P(PSTR("ERROR: instruction '%S' does not have addressing mode %S\r\n"),isa_instruction_iname(iix),isa_addrmode_aname(aix)); return; }
     // Check operand size
     uint16_t op;
     int bytes= isa_addrmode_bytes(aix);
@@ -86,7 +86,7 @@ static void cmdasm_main( int argc, char * argv[] ) {
     addr= cmdasm_addr;
   } else {
     if( cmd_parse(argv[0],&addr) ) { 
-      // no valid address, this could be a mnenemonic
+      // no valid address, this could be a mnemonic
       argc--; argv++; // remove '<addr>'
     } else {
       addr= cmdasm_addr;
@@ -105,9 +105,9 @@ static const char cmdasm_longhelp[] PROGMEM =
   "- if <inst> is absent, starts streaming mode, one instruction per line\r\n"
   "- streaming mode ends with an empty line\r\n"
   "- if <addr> is absent, continues with previous address\r\n"
-  "NOTE:\r\n"
-  "- <inst> is <mnenemonic> <operand>\r\n"
-  "- <mnenemonic> is one of the 3 letter opcode abbreviations\r\n"
+  "NOTES:\r\n"
+  "- <inst> is <mnemonic> <operand>\r\n"
+  "- <mnemonic> is one of the 3 letter opcode abbreviations\r\n"
   "- <operand> syntax determines addressing mode\r\n"
   "- in streaming mode '-' undoes previous instruction\r\n"
   "- <addr> is 0000..FFFF, but physical memory is limited and mirrored\r\n"
