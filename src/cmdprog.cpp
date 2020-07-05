@@ -10,11 +10,10 @@
 
 // todo: prog file [load name, save name, del name, dir]
 // todo: add "prog help" to explain <line> syntax 
-// todo: ".WORDS label" does not work (introduce .VECTOR ?)
+// todo: ".DW" with label" does not work (introduce .DV vector)
 // todo: warning about segment overlap, with knowledge that we have 64x1k mirrors
 
 // todo: 'on line xx' move to start of line 'ERROR: line xx:
-// todo: .BYTES->.IB, .WORDS->.IW, .EQBYTES->.DB, .EQWORDS->.DW 
 // todo: compiling JMP 0000 suggests to use ZPG (also asm)
 // todo: introduce cmd_printf
 
@@ -201,14 +200,14 @@ static void fs_dump(void) {
 
 // Stores lines of a program (assembler source)
 // These are the tags of the line types
-#define LN_TAG_ERR            0
-#define LN_TAG_COMMENT        1 // ; This is a silly program
-#define LN_TAG_PRAGMA_ORG     2 //          .ORG 0200
-#define LN_TAG_PRAGMA_BYTES   3 // data     .BYTES 03,01,04,01,05,09
-#define LN_TAG_PRAGMA_WORDS   4 // vects    .WORDS 1234,5678,9abc
-#define LN_TAG_PRAGMA_EQBYTE  5 // pi1      .EQBYTE 31
-#define LN_TAG_PRAGMA_EQWORD  6 // pi2      .EQWORD 3141
-#define LN_TAG_INST           7 // loop     LDA #12
+#define LN_TAG_ERR         0
+#define LN_TAG_COMMENT     1 // ; This is a silly program
+#define LN_TAG_PRAGMA_ORG  2 //          .ORG 0200
+#define LN_TAG_PRAGMA_DB   3 // data     .DB 03,01,04,01,05,09
+#define LN_TAG_PRAGMA_DW   4 // vects    .DW 1234,5678,9abc
+#define LN_TAG_PRAGMA_EB   5 // pi1      .EB 31
+#define LN_TAG_PRAGMA_EW   6 // pi2      .EW 3141
+#define LN_TAG_INST        7 // loop     LDA #12
 
 // To save RAM, we pack all line types
 #define PACKED __attribute__((packed))
@@ -223,25 +222,25 @@ typedef struct ln_org_s {
   uint16_t addr;
 } PACKED ln_org_t;
 
-// Stores "data     .BYTES 03,01,04,01,05,09"
+// Stores "data     .DB 03,01,04,01,05,09"
 typedef struct ln_bytes_s {
   uint8_t lbl_fsx;
   uint8_t bytes_fsx;
 } PACKED ln_bytes_t;
 
-// Stores "vects    .WORDS 1234,5678,9abc"
+// Stores "vects    .DW 1234,5678,9abc"
 typedef struct ln_words_s {
   uint8_t lbl_fsx;
   uint8_t words_fsx;
 } PACKED ln_words_t;
 
-// Stores "pi1      .EQBYTE 31"
+// Stores "pi1      .EB 31"
 typedef struct ln_eqbyte_s {
   uint8_t lbl_fsx;
   uint8_t byte;
 } PACKED ln_eqbyte_t;
 
-// Stores "pi2      .EQWORD 3141"
+// Stores "pi2      .EW 3141"
 typedef struct ln_eqword_s {
   uint8_t lbl_fsx;
   uint16_t word;
@@ -400,7 +399,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
     ln_temp.tag= LN_TAG_PRAGMA_ORG;
     ln_temp.org.addr= addr;
     return &ln_temp;
-  } else if( strcasecmp_P(pragma,PSTR(".BYTES"))==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".DB"))==0 ) {
     uint8_t bytes[FS_SIZE-1]; // to collect the bytes
     int bytesix=0;
     while( *operand!='\0' ) {
@@ -436,11 +435,11 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
       Serial.println(F("ERROR: out of string memory (for bytes)")); 
       goto free_lvl_fsx;      
     }
-    ln_temp.tag= LN_TAG_PRAGMA_BYTES;
+    ln_temp.tag= LN_TAG_PRAGMA_DB;
     ln_temp.bytes.lbl_fsx= lbl_fsx;
     ln_temp.bytes.bytes_fsx= bytes_fsx;
     return &ln_temp;
-  } else if( strcasecmp_P(pragma,PSTR(".WORDS"))==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".DW"))==0 ) {
     uint16_t words[(FS_SIZE-1)/2]; // to collect the words
     int wordsix=0;
     while( *operand!='\0' ) {
@@ -476,35 +475,35 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
       Serial.println(F("ERROR: out of string memory (for words)")); 
       goto free_lvl_fsx;      
     }
-    ln_temp.tag= LN_TAG_PRAGMA_WORDS;
+    ln_temp.tag= LN_TAG_PRAGMA_DW;
     ln_temp.words.lbl_fsx= lbl_fsx;
     ln_temp.words.words_fsx= words_fsx;
     return &ln_temp;
-  } else if( strcasecmp_P(pragma,PSTR(".EQBYTE"))==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".EB"))==0 ) {
     uint16_t byte;
     if( lbl_fsx==0 ) {
-      Serial.println(F("ERROR: .EQBYTE needs label")); 
+      Serial.println(F("ERROR: .EB needs label")); 
       goto free_lvl_fsx;      
     }
     if( !cmd_parse(operand,&byte) || byte>0xff ) {
       Serial.println(F("ERROR: byte must be 00..FF")); 
       goto free_lvl_fsx;      
     }
-    ln_temp.tag= LN_TAG_PRAGMA_EQBYTE;
+    ln_temp.tag= LN_TAG_PRAGMA_EB;
     ln_temp.eqbyte.lbl_fsx= lbl_fsx;
     ln_temp.eqbyte.byte= byte;
     return &ln_temp;
-  } else if( strcasecmp_P(pragma,PSTR(".EQWORD"))==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".EW"))==0 ) {
     uint16_t word;
     if( lbl_fsx==0 ) {
-      Serial.println(F("ERROR: .EQWORD must have label")); 
+      Serial.println(F("ERROR: .EW must have label")); 
       goto free_lvl_fsx;      
     }
     if( !cmd_parse(operand,&word) ) {
       Serial.println(F("ERROR: word must be 0000..FFFF")); 
       goto free_lvl_fsx;      
     }
-    ln_temp.tag= LN_TAG_PRAGMA_EQWORD;
+    ln_temp.tag= LN_TAG_PRAGMA_EW;
     ln_temp.eqword.lbl_fsx= lbl_fsx;
     ln_temp.eqword.word= word;
     return &ln_temp;
@@ -678,18 +677,18 @@ void ln_del(ln_t * ln) {
   case LN_TAG_PRAGMA_ORG    : 
     // skip
     return;
-  case LN_TAG_PRAGMA_BYTES  : 
+  case LN_TAG_PRAGMA_DB     : 
     fs_del(ln->bytes.lbl_fsx); 
     fs_del(ln->bytes.bytes_fsx);
     return;
-  case LN_TAG_PRAGMA_WORDS  : 
+  case LN_TAG_PRAGMA_DW     : 
     fs_del(ln->words.lbl_fsx); 
     fs_del(ln->words.words_fsx);
     return;
-  case LN_TAG_PRAGMA_EQBYTE : 
+  case LN_TAG_PRAGMA_EB     : 
     fs_del(ln->eqbyte.lbl_fsx); 
     return;
-  case LN_TAG_PRAGMA_EQWORD : 
+  case LN_TAG_PRAGMA_EW     : 
     fs_del(ln->eqword.lbl_fsx); 
     return;
   case LN_TAG_INST          : 
@@ -735,12 +734,12 @@ static int ln_snprint_org(char * str, int size, ln_t * ln) {
 // Prints the line `ln` (which must be of type .bytes) to the buffer `str`, which has size `size`.
 // Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_bytes(char * str, int size, ln_t * ln) {
-  // assert( ln->tag == LN_TAG_PRAGMA_BYTES );
+  // assert( ln->tag == LN_TAG_PRAGMA_DB );
   int res, len=0; 
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma
-  res=snprintf_P(str, size, PSTR(" .BYTES")); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .DB")); str+=res; size-=res; len+=res;
   // Print bytes
   uint8_t bytes[FS_SIZE];
   uint8_t num= fs_get_raw(ln->bytes.bytes_fsx,bytes);
@@ -755,12 +754,12 @@ static int ln_snprint_bytes(char * str, int size, ln_t * ln) {
 // Prints the line `ln` (which must be of type .words) to the buffer `str`, which has size `size`.
 // Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_words(char * str, int size, ln_t * ln) {
-  // assert( ln->tag == LN_TAG_PRAGMA_WORDS );
+  // assert( ln->tag == LN_TAG_PRAGMA_DW );
   int res, len=0; 
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma
-  res=snprintf_P(str, size, PSTR(" .WORDS")); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .DW")); str+=res; size-=res; len+=res;
   // Print words
   uint16_t words[FS_SIZE/2];
   uint8_t num= fs_get_raw(ln->words.words_fsx,(uint8_t*)words);
@@ -775,24 +774,24 @@ static int ln_snprint_words(char * str, int size, ln_t * ln) {
 // Prints the line `ln` (which must be of type .eqbyte) to the buffer `str`, which has size `size`.
 // Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_eqbyte(char * str, int size, ln_t * ln) {
-  // assert( ln->tag == LN_TAG_PRAGMA_EQBYTE );
+  // assert( ln->tag == LN_TAG_PRAGMA_EB );
   int res, len=0; 
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma with value
-  res=snprintf_P(str, size, PSTR(" .EQBYTE %02X"),ln->eqbyte.byte); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .EB %02X"),ln->eqbyte.byte); str+=res; size-=res; len+=res;
   return len;
 }
 
 // Prints the line `ln` (which must be of type .eqword) to the buffer `str`, which has size `size`.
 // Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint_eqword(char * str, int size, ln_t * ln) {
-  // assert( ln->tag == LN_TAG_PRAGMA_EQWORD );
+  // assert( ln->tag == LN_TAG_PRAGMA_EW );
   int res, len=0; 
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma with value
-  res=snprintf_P(str, size, PSTR(" .EQWORD %04X"),ln->eqword.word); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .EW %04X"),ln->eqword.word); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -824,13 +823,13 @@ static int ln_snprint_inst(char * str, int size, ln_t * ln) {
 // Returns the number of bytes that would have been printed to `str` if the size was big enough.
 static int ln_snprint(char * str, int size, ln_t * ln) {
   switch( ln->tag ) {
-  case LN_TAG_COMMENT       : return ln_snprint_comment(str,size,ln);
-  case LN_TAG_PRAGMA_ORG    : return ln_snprint_org(str,size,ln);
-  case LN_TAG_PRAGMA_BYTES  : return ln_snprint_bytes(str,size,ln);
-  case LN_TAG_PRAGMA_WORDS  : return ln_snprint_words(str,size,ln);
-  case LN_TAG_PRAGMA_EQBYTE : return ln_snprint_eqbyte(str,size,ln);
-  case LN_TAG_PRAGMA_EQWORD : return ln_snprint_eqword(str,size,ln);
-  case LN_TAG_INST          : return ln_snprint_inst(str,size,ln);
+  case LN_TAG_COMMENT     : return ln_snprint_comment(str,size,ln);
+  case LN_TAG_PRAGMA_ORG  : return ln_snprint_org(str,size,ln);
+  case LN_TAG_PRAGMA_DB   : return ln_snprint_bytes(str,size,ln);
+  case LN_TAG_PRAGMA_DW   : return ln_snprint_words(str,size,ln);
+  case LN_TAG_PRAGMA_EB   : return ln_snprint_eqbyte(str,size,ln);
+  case LN_TAG_PRAGMA_EW   : return ln_snprint_eqword(str,size,ln);
+  case LN_TAG_INST        : return ln_snprint_inst(str,size,ln);
   }
   return snprintf_P(str,size,PSTR("internal error (tag %d)"),ln->tag);
 }
@@ -903,14 +902,14 @@ static uint8_t comp_fs_buf[FS_SIZE];
 static uint8_t comp_get_numbytes(uint16_t lix) {
   ln_t * ln= &ln_store[lix]; 
   switch( ln->tag ) {
-  case LN_TAG_COMMENT       : comp_numbytes=0; break; // only a comment, no code
-  case LN_TAG_PRAGMA_ORG    : comp_numbytes=0; break; // only a pragma to define address, no code
-  case LN_TAG_PRAGMA_BYTES  : comp_numbytes=fs_get_raw(ln->bytes.bytes_fsx,comp_fs_buf); break; // HACK (*)
-  case LN_TAG_PRAGMA_WORDS  : comp_numbytes=fs_get_raw(ln->bytes.bytes_fsx,comp_fs_buf); break; // HACK (*)
-  case LN_TAG_PRAGMA_EQBYTE : comp_numbytes=0; break; // only defines a label to be a byte
-  case LN_TAG_PRAGMA_EQWORD : comp_numbytes=0; break; // only defines a label to be a word
-  case LN_TAG_INST          : comp_numbytes= isa_addrmode_bytes(isa_opcode_aix(ln->inst.opcode)); break;
-  default                   : Serial.print(F("ERROR: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
+  case LN_TAG_COMMENT    : comp_numbytes=0; break; // only a comment, no code
+  case LN_TAG_PRAGMA_ORG : comp_numbytes=0; break; // only a pragma to define address, no code
+  case LN_TAG_PRAGMA_DB  : comp_numbytes=fs_get_raw(ln->bytes.bytes_fsx,comp_fs_buf); break; // HACK (*)
+  case LN_TAG_PRAGMA_DW  : comp_numbytes=fs_get_raw(ln->bytes.bytes_fsx,comp_fs_buf); break; // HACK (*)
+  case LN_TAG_PRAGMA_EB  : comp_numbytes=0; break; // only defines a label to be a byte
+  case LN_TAG_PRAGMA_EW  : comp_numbytes=0; break; // only defines a label to be a word
+  case LN_TAG_INST       : comp_numbytes= isa_addrmode_bytes(isa_opcode_aix(ln->inst.opcode)); break;
+  default                : Serial.print(F("ERROR: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
   }
   return comp_numbytes;
 }
@@ -922,8 +921,8 @@ static uint8_t comp_get_byte(uint16_t lix, uint8_t bix) {
   uint8_t b;
   switch( ln->tag ) {
     default                   : b=0; Serial.print(F("ERROR: internal error (tag ")); Serial.print(ln->tag); Serial.println(')'); break; 
-    case LN_TAG_PRAGMA_BYTES  : b= comp_fs_buf[bix]; break; // HACK (*)
-    case LN_TAG_PRAGMA_WORDS  : b= comp_fs_buf[bix]; break; // HACK (*)
+    case LN_TAG_PRAGMA_DB     : b= comp_fs_buf[bix]; break; // HACK (*)
+    case LN_TAG_PRAGMA_DW     : b= comp_fs_buf[bix]; break; // HACK (*)
     case LN_TAG_INST          : {
       // Does op contain the real opcode or a label
       uint16_t val = ( ln->inst.flags & LN_FLAG_OPisLBL ) ? comp_result.fs[comp_result.fs[ln->inst.op].defx].val : ln->inst.op ;
@@ -959,10 +958,10 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       }
       continue;
     }
-    if( ln->tag==LN_TAG_PRAGMA_EQBYTE ) {
+    if( ln->tag==LN_TAG_PRAGMA_EB ) {
       uint8_t lbl= ln->eqbyte.lbl_fsx;
       if( lbl==0 ) {
-        Serial.println(F("ERROR: label missing for .EQBYTE")); 
+        Serial.println(F("ERROR: label missing for .EB")); 
         (*warnings)++;
       } else {
         comp_fs_t * cfs= &comp_result.fs[lbl];
@@ -972,10 +971,10 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       }
       continue;
     }
-    if( ln->tag==LN_TAG_PRAGMA_EQWORD ) { 
+    if( ln->tag==LN_TAG_PRAGMA_EW ) { 
       uint8_t lbl= ln->eqword.lbl_fsx;
       if( lbl==0 ) {
-        Serial.println(F("ERROR: label missing for .EQWORD")); 
+        Serial.println(F("ERROR: label missing for .EW")); 
         (*warnings)++;
       } else {
         comp_fs_t * cfs= &comp_result.fs[lbl];
@@ -1002,7 +1001,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       Serial.print(F("WARNING: no .ORG, assuming ")); Serial.println(comp_result.org[comp_result.org_num].addr1,HEX);
       (*warnings)++;
     }
-    if( ln->tag==LN_TAG_PRAGMA_BYTES ) { 
+    if( ln->tag==LN_TAG_PRAGMA_DB ) { 
       uint8_t lbl= ln->bytes.lbl_fsx;
       if( lbl!=0 ) {
         comp_fs_t * cfs= &comp_result.fs[lbl];
@@ -1020,7 +1019,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
       comp_result.org[comp_result.org_num].addr2+= fs_get_raw(ln->bytes.bytes_fsx, 0);
       continue;
     } 
-    if( ln->tag==LN_TAG_PRAGMA_WORDS ) { 
+    if( ln->tag==LN_TAG_PRAGMA_DW ) { 
       uint8_t lbl= ln->words.lbl_fsx;
       if( lbl!=0 ) {
         comp_fs_t * cfs= &comp_result.fs[lbl];
@@ -1394,7 +1393,7 @@ static void cmdprog_new(int argc, char * argv[]) {
     cmd_addstr_P(PSTR("prog insert\r"));
     cmd_addstr_P(PSTR("; hello all of you\r"));
     cmd_addstr_P(PSTR("         .ORG 0200\r"));
-    cmd_addstr_P(PSTR("count    .EQBYTE 05\r"));
+    cmd_addstr_P(PSTR("count    .EB 05\r"));
     cmd_addstr_P(PSTR("         LDX #count\r"));
     cmd_addstr_P(PSTR("loop     LDA data,x\r"));
     cmd_addstr_P(PSTR("         STA 8000\r"));
@@ -1402,9 +1401,9 @@ static void cmdprog_new(int argc, char * argv[]) {
     cmd_addstr_P(PSTR("         BNE loop\r"));
     cmd_addstr_P(PSTR("stop     JMP stop\r"));
     cmd_addstr_P(PSTR("         .ORG 0300\r"));
-    cmd_addstr_P(PSTR("data     .BYTES 48,65,6C,6C,6F\r"));
+    cmd_addstr_P(PSTR("data     .DB 48,65,6C,6C,6F\r"));
     cmd_addstr_P(PSTR("         .ORG FFFC\r"));
-    cmd_addstr_P(PSTR("         .WORDS 0200\r"));
+    cmd_addstr_P(PSTR("         .DW 0200\r"));
     cmd_addstr_P(PSTR("\r"));
   } 
 }
