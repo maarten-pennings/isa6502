@@ -9,7 +9,7 @@ import serial
 
 try:
   # ports=cmd.findports()
-  port= 'COM11'
+  port= 'COM4'
   c= cmd.Cmd(port)
   c.close(True)
 except serial.SerialException :  
@@ -510,17 +510,17 @@ class Test_read(unittest.TestCase):
     self.assertIn("02A4: ",r) 
     self.assertIn("02B4: ",r) 
     self.assertNotIn("02C4: ",r) 
-    # addr from last read (explicit)
+    # addr explicit
     r= self.cmd.exec("read 20A 04") 
     self.assertEqual("020A: AA BB CC DD\r\n",r) 
     r= self.cmd.exec("read - 01") 
     self.assertEqual("020E: EE\r\n",r) 
-    # addr from last read (borde case)
+    # addr explicit (border case)
     r= self.cmd.exec("read 240 00") 
     self.assertEqual("",r) 
 
   # The 'read' command also continues from assembler
-  def test_sub(self):
+  def test_asm(self):
     self.cmd.exec("write 0200 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF") 
     self.cmd.exec("asm 202 NOP")
     # addr from last asm
@@ -616,7 +616,7 @@ class Test_write(unittest.TestCase):
     self.assertEqual("0004: 44 25 66\r\n",r) 
 
   # The write command writes bytes to memory (seq)
-  def test_write_plain(self) :
+  def test_write_seq(self) :
     # write 16 bytes
     self.cmd.exec("write 0000 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
     r= self.cmd.exec("read 0000 10") 
@@ -635,7 +635,7 @@ class Test_write(unittest.TestCase):
     self.assertEqual("0009: 99 AA BB\r\n",r) 
 
   # The write command writes bytes to memory (read)
-  def test_write_plain(self) :
+  def test_write_read(self) :
     # read 4 bytes forwards
     self.cmd.exec("write 0000 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF")
     self.cmd.exec("write 0002 12 read 005 4 17")
@@ -672,11 +672,84 @@ class Test_write(unittest.TestCase):
     r= self.cmd.exec("read 0600 07") 
     self.assertEqual("0600: 22 33 44 55 5A 5A 5A\r\n",r) 
 
-# ##########################################################################
+##########################################################################
+### dasm
+##########################################################################
+
+class Test_dasm(unittest.TestCase):
+  def setUp(self):
+    self.cmd= cmd.Cmd(port)
+    
+  def tearDown(self):
+    self.cmd.close()
+    self.cmd= None
+
+  # Commands and arguments may be shortened.
+  def test_shorten(self):
+    self.cmd.exec("write 0200 A9 00 EA 00") # ensure we know what we read
+    r= self.cmd.exec("d 0200 3") 
+    self.assertEqual("0200 A9 00    LDA #00\r\n0202 EA       NOP\r\n0203 00       BRK\r\n",r) 
+
+  # The long help gives details
+  def test_longhelp(self):
+    r= self.cmd.exec("help dasm")
+    # Check if all sections are there
+    self.assertIn("SYNTAX: dasm",r) 
+    self.assertIn("<addr> and <num> is 0000..FFFF, but physical memory is limited and mirrored",r) 
+
+  # Erroneous args
+  def test_errargs(self):
+    r= self.cmd.exec("dasm foo")
+    self.assertIn("ERROR: expected hex <addr>, not 'foo'\r\n",r) 
+    r= self.cmd.exec("dasm 0200 bar")
+    self.assertIn("ERROR: expected hex <num>, not 'bar'\r\n",r) 
+    r= self.cmd.exec("dasm 0200 10 baz")
+    self.assertIn("ERROR: too many arguments\r\n",r) 
+
+  ## Test for main features ##############################################
+  
+  # The 'dasm' command has default addr and num
+  def test_dasm(self):
+    self.cmd.exec("write 0220 A2 22 A0 30 AD BA AB C9 11 D0 F5 18 4C 04 02 00 00 00 00") 
+    self.cmd.exec("write 0210 A2 21 A0 30 AD BA AB C9 11 D0 F5 18 4C 04 02 00") 
+    self.cmd.exec("write 0200 A2 20 A0 30 AD BA AB C9 11 D0 F5 18 4C 04 02 00") 
+    # addr from last write (default size)
+    r= self.cmd.exec("dasm") 
+    self.assertEqual("0200 A2 20    LDX #20\r\n0202 A0 30    LDY #30\r\n0204 AD BA AB LDA ABBA\r\n0207 C9 11    CMP #11\r\n0209 D0 F5    BNE +F5 (0200)\r\n020B 18       CLC\r\n020C 4C 04 02 JMP 0204\r\n020F 00       BRK\r\n",r) 
+    # addr from last dasm (default size)
+    r= self.cmd.exec("dasm") 
+    self.assertEqual("0210 A2 21    LDX #21\r\n0212 A0 30    LDY #30\r\n0214 AD BA AB LDA ABBA\r\n0217 C9 11    CMP #11\r\n0219 D0 F5    BNE +F5 (0210)\r\n021B 18       CLC\r\n021C 4C 04 02 JMP 0204\r\n021F 00       BRK\r\n",r) 
+    # addr from last dasm (set size)
+    r= self.cmd.exec("dasm - 2") 
+    self.assertEqual("0220 A2 22    LDX #22\r\n0222 A0 30    LDY #30\r\n",r) 
+    # addr from last dasm (border case)
+    r= self.cmd.exec("dasm - ") 
+    self.assertIn("0224 AD BA AB LDA ABBA",r) 
+    self.assertIn("0231 00",r) 
+    self.assertNotIn("0232 00",r) 
+    # addr explicit
+    r= self.cmd.exec("dasm 209 03") 
+    self.assertEqual("0209 D0 F5    BNE +F5 (0200)\r\n020B 18       CLC\r\n020C 4C 04 02 JMP 0204\r\n",r) 
+    r= self.cmd.exec("dasm - 01") 
+    self.assertEqual("020F 00       BRK\r\n",r) 
+    # addr explicit (border case)
+    r= self.cmd.exec("dasm 240 00") 
+    self.assertEqual("",r) 
+
+  # The 'dasm' command also continues from assembler
+  def test_asm(self):
+    self.cmd.exec("write 0200 A2 20 A0 30 AD BA AB C9 11 D0 F5 18 4C 04 02 00") 
+    self.cmd.exec("asm 202 ASL *05")
+    # addr from last asm
+    r= self.cmd.exec("dasm - 2") 
+    self.assertIn("0202 06 05    ASL *05\r\n",r) 
+
+
+###########################################################################
 # ### Xxx
 # ##########################################################################
 # 
-# class Test_help(unittest.TestCase):
+# class Test_xxx(unittest.TestCase):
 #   def setUp(self):
 #     self.cmd= cmd.Cmd(port)
 #     
