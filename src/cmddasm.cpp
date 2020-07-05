@@ -31,17 +31,22 @@ static void cmddasm_dasm( uint16_t addr, uint16_t num ) {
     else { cmd_printf_P(PSTR("ERROR: this should not happen (wrong bytes %d)"),bytes); return; }
     // Print binary columns
     cmd_printf_P( PSTR("%04X %02X %s "), addr, opcode, opsB); 
-    // Print text columns
-    if( iix>0 ) {
+    // Print text columns 
+    if( iix>0 ) { // valid instructions
+      // Print opcode 
+      cmd_printf_P( PSTR("%S"), isa_instruction_iname(iix));
+      // Add syntax around opsT to match addressing mode
       char buf[10];
-      isa_snprint_op(buf,sizeof buf, aix,opsT);
-      cmd_printf_P( PSTR("%S %s"), isa_instruction_iname(iix), buf );
+      int len= isa_snprint_op(buf,sizeof buf,aix,opsT);
+      // Print dressed up opsT (prepended with space)
+      if( len>0 ) cmd_printf_P( PSTR(" %s"), buf);
+      // add target addr for addressing mode REL 
       if( aix==ISA_AIX_REL ) {
         uint16_t target= addr+bytes+(int8_t)op1;
         // int otherpage= (addr>>8) != (target>>8);
         cmd_printf_P( PSTR(" (%04X)"), target );
       }
-    } else {
+    } else { // invalid instructions
       Serial.print(F("---")); 
     }
     Serial.println(); 
