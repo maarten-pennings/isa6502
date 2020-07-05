@@ -23,7 +23,9 @@ except serial.SerialException :
 
 class Test_cmd(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -106,7 +108,9 @@ class Test_cmd(unittest.TestCase):
 
 class Test_help(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -176,7 +180,9 @@ class Test_help(unittest.TestCase):
 
 class Test_echo(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -276,7 +282,9 @@ class Test_echo(unittest.TestCase):
 
 class Test_man(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -449,7 +457,9 @@ class Test_man(unittest.TestCase):
 
 class Test_read(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -533,7 +543,9 @@ class Test_read(unittest.TestCase):
 
 class Test_write(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -678,7 +690,9 @@ class Test_write(unittest.TestCase):
 
 class Test_dasm(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -751,7 +765,9 @@ class Test_dasm(unittest.TestCase):
 
 class Test_asm(unittest.TestCase):
   def setUp(self):
-    self.cmd= cmd.Cmd(port)
+    self.cmd= cmd.Cmd()
+    self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+    self.cmd.open(port)
     
   def tearDown(self):
     self.cmd.close()
@@ -1418,7 +1434,9 @@ class Test_asm(unittest.TestCase):
 # 
 # class Test_xxx(unittest.TestCase):
 #   def setUp(self):
-#     self.cmd= cmd.Cmd(port)
+#     self.cmd= cmd.Cmd()
+#     self.cmd.logstart(filemode="a",msg=type(self).__name__+"."+self._testMethodName)
+#     self.cmd.open(port)
 #     
 #   def tearDown(self):
 #     self.cmd.close()
@@ -1461,4 +1479,6 @@ class Test_asm(unittest.TestCase):
 #     self.assertIn("...yyy...",r) 
 
 if __name__ == '__main__':
+  logfile= open("__cmd.log","w")
+  logfile.close()
   unittest.main()

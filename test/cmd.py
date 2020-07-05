@@ -69,10 +69,10 @@ class Cmd:
         self.serial= None
         self.logfile= None
         if not port is None: self.open(port)
-    def logstart(self,filename="__cmd.log",filemode="w"):
+    def logstart(self,filename="__cmd.log",filemode="w",msg=None):
         """Starts logging to file 'filename' (for append) of all commands and responses to and from the command interpreter."""
         self.logfile= open(filename,filemode)
-        self.log('Log start '+filename)
+        self.log('log start '+(msg if msg else filename))
     def logstop(self):
         if self.logfile!=None:
             """Stops logging."""
@@ -102,9 +102,14 @@ class Cmd:
     def close(self, nice=True):
         """Closes the serial port. When 'nice', first re-enables echoing."""
         if nice : res=self.exec("echo enable\n") # Switch echo back on
-        if self.logfile!=None: self.log("close port")
+        if self.logfile!=None: 
+            self.log("close port")
         self.serial.close()
         self.serial= None
+        if self.logfile!=None: 
+            self.log("log stop")
+            self.logfile.write("\n")
+            self.logfile.close()
     def isopen(self):
         """Returns true if the serial port to the dongle is open."""
         return not self.serial is None
