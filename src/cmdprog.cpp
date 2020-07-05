@@ -14,11 +14,9 @@
 // todo: warning about segment overlap, with knowledge that we have 64x1k mirrors
 
 // todo: all strings get F()/PTSR() - also in sprintf
-// todo: all strings need \r\n (errors, help)
 // todo: 'on line xx' move to start of line 'ERROR: line xx:
 // todo: .BYTES->.IB, .WORDS->.IW, .EQBYTES->.DB, .EQWORDS->.DW 
-// todo: check for lower case x
-
+// todo: compiling JMP 0000 suggests to use ZPG (also asm)
 
 // ==========================================================================
 // Fixed length string
@@ -729,7 +727,7 @@ static int ln_snprint_org(char * str, int size, ln_t * ln) {
   // Print indent (we misuse string 0 as empty string to get an indent of FS_SIZE)
   res=fs_snprint(str, size, FS_SIZE, 0); str+=res; size-=res; len+=res;
   // Print org pragma with address
-  res=snprintf(str, size, " .ORG %04x",ln->org.addr); str+=res; size-=res; len+=res;
+  res=snprintf(str, size, " .ORG %04X",ln->org.addr); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -747,7 +745,7 @@ static int ln_snprint_bytes(char * str, int size, ln_t * ln) {
   uint8_t num= fs_get_raw(ln->bytes.bytes_fsx,bytes);
   char c=' ';
   for( uint8_t i=0; i<num; i++) { 
-    res=snprintf(str, size, "%c%02x", c, bytes[i]); str+=res; size-=res; len+=res;
+    res=snprintf(str, size, "%c%02X", c, bytes[i]); str+=res; size-=res; len+=res;
     c=','; 
   }
   return len;
@@ -767,7 +765,7 @@ static int ln_snprint_words(char * str, int size, ln_t * ln) {
   uint8_t num= fs_get_raw(ln->words.words_fsx,(uint8_t*)words);
   char c=' ';
   for( uint8_t i=0; i<num/2; i++) { 
-    res=snprintf(str, size, "%c%04x", c, words[i]); str+=res; size-=res; len+=res;
+    res=snprintf(str, size, "%c%04X", c, words[i]); str+=res; size-=res; len+=res;
     c=','; 
   }
   return len;
@@ -781,7 +779,7 @@ static int ln_snprint_eqbyte(char * str, int size, ln_t * ln) {
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma with value
-  res=snprintf(str, size, " .EQBYTE %02x",ln->eqbyte.byte); str+=res; size-=res; len+=res;
+  res=snprintf(str, size, " .EQBYTE %02X",ln->eqbyte.byte); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -793,7 +791,7 @@ static int ln_snprint_eqword(char * str, int size, ln_t * ln) {
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma with value
-  res=snprintf(str, size, " .EQWORD %04x",ln->eqword.word); str+=res; size-=res; len+=res;
+  res=snprintf(str, size, " .EQWORD %04X",ln->eqword.word); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -814,8 +812,8 @@ static int ln_snprint_inst(char * str, int size, ln_t * ln) {
   char opbuf[FS_SIZE+1]; // a label, or byte or word
   if( ln->inst.flags & LN_FLAG_OPisLBL ) fs_snprint(opbuf,FS_SIZE+1,0,ln->inst.op); // op is an fsx
   else if( bytes==1 ) opbuf[0]='\0';
-  else if( bytes==2 ) snprintf(opbuf,FS_SIZE+1,"%02x",ln->inst.op); // op is a byte
-  else if( bytes==3 ) snprintf(opbuf,FS_SIZE+1,"%04x",ln->inst.op); // op is a word
+  else if( bytes==2 ) snprintf(opbuf,FS_SIZE+1,"%02X",ln->inst.op); // op is a byte
+  else if( bytes==3 ) snprintf(opbuf,FS_SIZE+1,"%04X",ln->inst.op); // op is a word
   // Print operand (opbuf)
   res=isa_snprint_op(str,size,aix,opbuf); str+=res; size-=res; len+=res;
   return len;
@@ -1231,7 +1229,7 @@ static bool comp_compile( void ) {
 static void comp_map( void ) {
   int count=0;
   Serial.println();
-  Serial.println(F("map labels: lbl id, line num, lbl, Refd//Word/Byte//Other/Def/Use, def lbl id, value")); 
+  Serial.println(F("labels: lbl id, line num, lbl, Refd//Word/Byte//Other/Def/Use, def lbl id, val")); 
   for( int fsx=1; fsx<FS_NUM; fsx++) {
     if( fs_store[fsx][0]=='\0' ) continue;
     comp_fs_t * cfs= &comp_result.fs[fsx];
@@ -1262,7 +1260,7 @@ static void comp_map( void ) {
   }
   if( count==0 ) Serial.println(f(" none"));
   Serial.println();
-  Serial.println(F("map sections: section id, line num, start addr, end addr")); 
+  Serial.println(F("sections: section id, line num, start addr, end addr")); 
   for( uint8_t oix=0; oix<comp_result.org_num; oix++ ) {
     if( oix==0 && comp_result.org[oix].addr1==comp_result.org[oix].addr2 ) continue;
     Serial.print(' '); Serial.print(oix,HEX); Serial.print(F(". "));
@@ -1282,7 +1280,7 @@ static void comp_list( void ) {
   Serial.println();
   for(uint16_t lix=0; lix<ln_num; lix++) {
     if( oix+1<comp_result.org_num && comp_result.org[oix+1].lix==lix ) { // A new .ORG section
-      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf(buf,40,"%04x |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf); }
+      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf(buf,40,"%04X |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf); }
       oix++;
     }
     ln_t * ln= &ln_store[lix]; 
@@ -1293,27 +1291,27 @@ static void comp_list( void ) {
     if( len==0 ) {    
       Serial.print(F("     |             ")); 
     } else { 
-      snprintf(buf,40,"%04x | ",addr); 
+      snprintf(buf,40,"%04X | ",addr); 
       Serial.print(buf); 
       while( bix<len && bix<4 ) {
-        snprintf(buf,40,"%02x ",comp_get_byte(lix,bix)); 
+        snprintf(buf,40,"%02X ",comp_get_byte(lix,bix)); 
         Serial.print(buf); 
         bix++;
       }
       for(int i=len; i<4; i++ ) Serial.print(F("   "));
     }
     // Print linenum
-    snprintf(buf,40,"| %03x ",lix);
+    snprintf(buf,40,"| %03X ",lix);
     Serial.print(buf); 
     // Print source
     ln_snprint(buf,40,ln);
     Serial.println(buf); // END-OF_LINE
     // Special case: too many bytes to print, so we print a next line
     if( bix<len ) { 
-      snprintf(buf,40,"%04x | ",addr+bix); 
+      snprintf(buf,40,"%04X | ",addr+bix); 
       Serial.print(buf); 
       while( bix<len ) {
-        snprintf(buf,40,"%02x ",comp_get_byte(lix,bix)); 
+        snprintf(buf,40,"%02X ",comp_get_byte(lix,bix)); 
         Serial.print(buf); 
         bix++;
       }
@@ -1322,7 +1320,7 @@ static void comp_list( void ) {
     } 
   }
   // print final .ORG section end
-  snprintf(buf,40,"%04x |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf);
+  snprintf(buf,40,"%04X |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf);
   // Vector?
   if( comp_result.add_reset_vector ) {
     Serial.println(F("FFFC | 00 02       | implicit section with reset vector")); 
@@ -1344,8 +1342,8 @@ static void comp_bin( void ) {
     if( len==0 ) continue;
     uint16_t addr= comp_get_addr(lix);
     for( uint8_t bix=0; bix<len; bix++ ) {
-      if( count==0 ) { snprintf(buf,40,"%04x:",addr);  Serial.print(buf); }
-      snprintf(buf,40," %02x",comp_get_byte(lix,bix)); 
+      if( count==0 ) { snprintf(buf,40,"%04X:",addr);  Serial.print(buf); }
+      snprintf(buf,40," %02X",comp_get_byte(lix,bix)); 
       Serial.print(buf); 
       count= (count+1) % 16;
       if( count==0 ) Serial.println();
@@ -1376,10 +1374,39 @@ static void comp_install( void ) {
   Serial.print(F("INFO: installed a program of ")); Serial.print(count); Serial.println(F(" bytes")); 
 }
 
+
 // ==========================================================================
 // Command handling
 // ==========================================================================
 
+
+static void cmdprog_new(int argc, char * argv[]) {
+  if( argc>3 ) { Serial.println(F("ERROR: too many arguments")); return; }
+  if( argc==3 ) {
+    if( cmd_isprefix(PSTR("example"),argv[2]) ) { Serial.println(F("ERROR: expected 'example'")); return; }
+  }
+  // Delete all lines
+  for( uint16_t i=0; i<ln_num; i++ ) ln_del(&ln_store[i]); 
+  ln_num= 0;
+  // Insert example
+  if( argc==3 ) {
+    cmd_addstr("prog insert\r");
+    cmd_addstr("; hello all of you\r");
+    cmd_addstr("         .ORG 0200\r");
+    cmd_addstr("count    .EQBYTE 05\r");
+    cmd_addstr("         LDX #count\r");
+    cmd_addstr("loop     LDA data,x\r");
+    cmd_addstr("         STA 8000\r");
+    cmd_addstr("         DEX\r");
+    cmd_addstr("         BNE loop\r");
+    cmd_addstr("stop     JMP stop\r");
+    cmd_addstr("         .ORG 0300\r");
+    cmd_addstr("data     .BYTES 48,65,6C,6C,6F\r");
+    cmd_addstr("         .ORG FFFC\r");
+    cmd_addstr("         .WORDS 0200\r");
+    cmd_addstr("\r");
+  } 
+}
 
 static void cmdprog_list(int argc, char * argv[]) {
   uint16_t num1, num2;
@@ -1402,7 +1429,7 @@ static void cmdprog_list(int argc, char * argv[]) {
   }
   char buf[40];
   if( ln_num>0 ) for(uint16_t i=num1; i<=num2; i++) {
-    snprintf(buf,40,"%03x ",i);
+    snprintf(buf,40,"%03X ",i);
     Serial.print(buf); 
     ln_snprint(buf,40,&ln_store[i]);
     Serial.println(buf); 
@@ -1485,7 +1512,7 @@ static void cmdprog_insert_stream(int argc, char * argv[]) {
     }
   }
   // Update the streaming prompt (will only be shown in streaming mode)
-  char buf[8]; snprintf_P(buf,sizeof buf, PSTR("P:%03x> "),cmdprog_insert_linenum); cmd_set_streamprompt(buf);
+  char buf[8]; snprintf_P(buf,sizeof buf, PSTR("P:%03X> "),cmdprog_insert_linenum); cmd_set_streamprompt(buf);
   
 }
 
@@ -1508,6 +1535,12 @@ static void cmdprog_compile(int argc, char * argv[]) {
   if( cmd==3 ) { comp_list(); return; }
   if( cmd==4 ) { comp_bin(); return; }
 }
+
+
+// ==========================================================================
+// The command definition
+// ==========================================================================
+
 
 // The main command handler
 static void cmdprog_main(int argc, char * argv[]) {
@@ -1532,6 +1565,10 @@ static void cmdprog_main(int argc, char * argv[]) {
     if( linenum>=ln_num ) { Serial.println(F("ERROR: <linenum> does not exist")); return; }
     ln_t * ln= ln_parse(argc-3, argv+3);
     if( ln!=0 ) { ln_del(&ln_store[linenum]);  ln_store[linenum]= *ln; }
+    return;
+  }
+  if( argc>1 && strcmp_P(argv[1],PSTR("new"))==0 ) {
+    cmdprog_new(argc,argv);
     return;
   }
   if( argc>1 && cmd_isprefix(PSTR("list"),argv[1]) ) { 
@@ -1562,18 +1599,23 @@ static void cmdprog_main(int argc, char * argv[]) {
 
 // Note cmd_register needs all strings to be PROGMEM strings. For longhelp we do that manually
 const char cmdprog_longhelp[] PROGMEM = 
-  "SYNTAX: prog insert [<linenum> [<line>] ]\r\n"
-  "- inserts <line> to program at position <linenum>\r\n"
-  "- if <line> is absent, starts streaming mode (empty line ends it)\r\n"
-  "- if <linenum> is absent, starts streaming mode at end of program\r\n"
-  "SYNTAX: prog replace <linenum> <line> ]\r\n"
-  "- overwrites the program at position <linenum> with <line>\r\n"
   "SYNTAX: prog list [<num1> [<num2>]]\r\n"
   "- lists the program from the line number <num1> to <num2>\r\n"
   "- if both <num1> and <num2> absent lists whole program"
   "- if <num2> is absent lists only line <num1>\r\n"
   "- if both present, lists lines <num1> upto <num2>\r\n"
   "- if both present, they may be '-', meaning 0 for <num1> and last for <num2>\r\n"
+  "SYNTAX: prog stat [strings]\r\n"
+  "- shows the memory usage of the program (and optionally the string table)\r\n"
+  "SYNTAX: prog new [example]\r\n"
+  "- deletes all lines of the program - 'new' can not be abbreviated\r\n"
+  "- if 'example' is present, supplies example program\r\n"
+  "SYNTAX: prog insert [<linenum> [<line>] ]\r\n"
+  "- inserts <line> to program at position <linenum>\r\n"
+  "- if <line> is absent, starts streaming mode (empty line ends it)\r\n"
+  "- if <linenum> is absent, starts streaming mode at end of program\r\n"
+  "SYNTAX: prog replace <linenum> <line> ]\r\n"
+  "- overwrites the program at position <linenum> with <line>\r\n"
   "SYNTAX: prog move <num1> <num2> <num3>\r\n"
   "- moves lines <num1> up to and including <num2> to just before <num3>\r\n"
   "SYNTAX: prog delete <num1> [<num2>]\r\n"
@@ -1587,8 +1629,6 @@ const char cmdprog_longhelp[] PROGMEM =
   "- 'install' compiles and writes to memory\r\n"
   "- 'map' compiles and produces a table of labels and sections\r\n"
   "- 'bin' shows the generated binary\r\n"
-  "SYNTAX: prog stat [strings]\r\n"
-  "- shows the memory usage of the program (and optionally the string table)\r\n"
 ;
 
 
@@ -1597,21 +1637,4 @@ void cmdprog_register(void) {
   fs_init();
   ln_init();
   cmd_register(cmdprog_main, PSTR("prog"), PSTR("edit and compile a program"), cmdprog_longhelp);
-  // todo: remove test
-  cmd_addstr("prog insert\n");
-  cmd_addstr("; hello all of you\n");
-  cmd_addstr("         .ORG 0200\n");
-  cmd_addstr("count    .EQBYTE 05\n");
-  cmd_addstr("         LDX #count\n");
-  cmd_addstr("loop     LDA data,x\n");
-  cmd_addstr("         STA 8000\n");
-  cmd_addstr("         DEX\n");
-  cmd_addstr("         BNE loop\n");
-  cmd_addstr("stop     JMP stop\n");
-  cmd_addstr("         .ORG 0300\n");
-  cmd_addstr("data     .BYTES 48,65,6C,6C,6F\n");
-  cmd_addstr("         .ORG FFFC\n");
-  cmd_addstr("         .WORDS 0200\n");
-  cmd_addstr("\n");
-  cmd_addstr("prog compile list\n");  
 }
