@@ -13,10 +13,11 @@
 // todo: ".WORDS label" does not work (introduce .VECTOR ?)
 // todo: warning about segment overlap, with knowledge that we have 64x1k mirrors
 
-// todo: all strings get F()/PTSR() - also in sprintf
 // todo: 'on line xx' move to start of line 'ERROR: line xx:
 // todo: .BYTES->.IB, .WORDS->.IW, .EQBYTES->.DB, .EQWORDS->.DW 
 // todo: compiling JMP 0000 suggests to use ZPG (also asm)
+// todo: introduce cmd_printf
+
 
 // ==========================================================================
 // Fixed length string
@@ -389,7 +390,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
   }
   // WARNING: free resource lbl_fsx if we can not add line
 
-  if( strcasecmp(pragma,".ORG")==0 ) {
+  if( strcasecmp_P(pragma,PSTR(".ORG"))==0 ) {
     uint16_t addr;
     if( !cmd_parse(operand,&addr) ) {
       Serial.println(F("ERROR: addr must be 0000..FFFF"));   
@@ -399,7 +400,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
     ln_temp.tag= LN_TAG_PRAGMA_ORG;
     ln_temp.org.addr= addr;
     return &ln_temp;
-  } else if( strcasecmp(pragma,".BYTES")==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".BYTES"))==0 ) {
     uint8_t bytes[FS_SIZE-1]; // to collect the bytes
     int bytesix=0;
     while( *operand!='\0' ) {
@@ -439,7 +440,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
     ln_temp.bytes.lbl_fsx= lbl_fsx;
     ln_temp.bytes.bytes_fsx= bytes_fsx;
     return &ln_temp;
-  } else if( strcasecmp(pragma,".WORDS")==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".WORDS"))==0 ) {
     uint16_t words[(FS_SIZE-1)/2]; // to collect the words
     int wordsix=0;
     while( *operand!='\0' ) {
@@ -479,7 +480,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
     ln_temp.words.lbl_fsx= lbl_fsx;
     ln_temp.words.words_fsx= words_fsx;
     return &ln_temp;
-  } else if( strcasecmp(pragma,".EQBYTE")==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".EQBYTE"))==0 ) {
     uint16_t byte;
     if( lbl_fsx==0 ) {
       Serial.println(F("ERROR: .EQBYTE needs label")); 
@@ -493,7 +494,7 @@ static ln_t * ln_parse_pragma( char * label, char * pragma, char * operand ) {
     ln_temp.eqbyte.lbl_fsx= lbl_fsx;
     ln_temp.eqbyte.byte= byte;
     return &ln_temp;
-  } else if( strcasecmp(pragma,".EQWORD")==0 ) {
+  } else if( strcasecmp_P(pragma,PSTR(".EQWORD"))==0 ) {
     uint16_t word;
     if( lbl_fsx==0 ) {
       Serial.println(F("ERROR: .EQWORD must have label")); 
@@ -710,7 +711,7 @@ static int ln_snprint_comment(char*str, int size, ln_t * ln) {
   // assert( ln->tag == LN_TAG_COMMENT );
   int res, len=0;
   if( ln->cmt.cmt_fsxs[0]=='\0' ) { if(size>0) *str='\0'; return len; } // skip printing ";"
-  res= snprintf(str,size,"; "); str+=res; size-=res; len+=res;
+  res= snprintf_P(str,size,PSTR("; ")); str+=res; size-=res; len+=res;
   int i=0;
   while( ln->cmt.cmt_fsxs[i]!=0 ) {
     res= fs_snprint(str,size,0,ln->cmt.cmt_fsxs[i]); str+=res; size-=res; len+=res;
@@ -727,7 +728,7 @@ static int ln_snprint_org(char * str, int size, ln_t * ln) {
   // Print indent (we misuse string 0 as empty string to get an indent of FS_SIZE)
   res=fs_snprint(str, size, FS_SIZE, 0); str+=res; size-=res; len+=res;
   // Print org pragma with address
-  res=snprintf(str, size, " .ORG %04X",ln->org.addr); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .ORG %04X"),ln->org.addr); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -739,13 +740,13 @@ static int ln_snprint_bytes(char * str, int size, ln_t * ln) {
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma
-  res=snprintf(str, size, " .BYTES"); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .BYTES")); str+=res; size-=res; len+=res;
   // Print bytes
   uint8_t bytes[FS_SIZE];
   uint8_t num= fs_get_raw(ln->bytes.bytes_fsx,bytes);
   char c=' ';
   for( uint8_t i=0; i<num; i++) { 
-    res=snprintf(str, size, "%c%02X", c, bytes[i]); str+=res; size-=res; len+=res;
+    res=snprintf_P(str, size, PSTR("%c%02X"), c, bytes[i]); str+=res; size-=res; len+=res;
     c=','; 
   }
   return len;
@@ -759,13 +760,13 @@ static int ln_snprint_words(char * str, int size, ln_t * ln) {
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma
-  res=snprintf(str, size, " .WORDS"); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .WORDS")); str+=res; size-=res; len+=res;
   // Print words
   uint16_t words[FS_SIZE/2];
   uint8_t num= fs_get_raw(ln->words.words_fsx,(uint8_t*)words);
   char c=' ';
   for( uint8_t i=0; i<num/2; i++) { 
-    res=snprintf(str, size, "%c%04X", c, words[i]); str+=res; size-=res; len+=res;
+    res=snprintf_P(str, size, PSTR("%c%04X"), c, words[i]); str+=res; size-=res; len+=res;
     c=','; 
   }
   return len;
@@ -779,7 +780,7 @@ static int ln_snprint_eqbyte(char * str, int size, ln_t * ln) {
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma with value
-  res=snprintf(str, size, " .EQBYTE %02X",ln->eqbyte.byte); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .EQBYTE %02X"),ln->eqbyte.byte); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -791,7 +792,7 @@ static int ln_snprint_eqword(char * str, int size, ln_t * ln) {
   // Print label (or indent)
   res=fs_snprint(str, size, FS_SIZE, ln->bytes.lbl_fsx); str+=res; size-=res; len+=res;
   // Print pragma with value
-  res=snprintf(str, size, " .EQWORD %04X",ln->eqword.word); str+=res; size-=res; len+=res;
+  res=snprintf_P(str, size, PSTR(" .EQWORD %04X"),ln->eqword.word); str+=res; size-=res; len+=res;
   return len;
 }
 
@@ -812,8 +813,8 @@ static int ln_snprint_inst(char * str, int size, ln_t * ln) {
   char opbuf[FS_SIZE+1]; // a label, or byte or word
   if( ln->inst.flags & LN_FLAG_OPisLBL ) fs_snprint(opbuf,FS_SIZE+1,0,ln->inst.op); // op is an fsx
   else if( bytes==1 ) opbuf[0]='\0';
-  else if( bytes==2 ) snprintf(opbuf,FS_SIZE+1,"%02X",ln->inst.op); // op is a byte
-  else if( bytes==3 ) snprintf(opbuf,FS_SIZE+1,"%04X",ln->inst.op); // op is a word
+  else if( bytes==2 ) snprintf_P(opbuf,FS_SIZE+1,PSTR("%02X"),ln->inst.op); // op is a byte
+  else if( bytes==3 ) snprintf_P(opbuf,FS_SIZE+1,PSTR("%04X"),ln->inst.op); // op is a word
   // Print operand (opbuf)
   res=isa_snprint_op(str,size,aix,opbuf); str+=res; size-=res; len+=res;
   return len;
@@ -831,7 +832,7 @@ static int ln_snprint(char * str, int size, ln_t * ln) {
   case LN_TAG_PRAGMA_EQWORD : return ln_snprint_eqword(str,size,ln);
   case LN_TAG_INST          : return ln_snprint_inst(str,size,ln);
   }
-  return snprintf(str,size,"internal error (tag %d)",ln->tag);
+  return snprintf_P(str,size,PSTR("internal error (tag %d)"),ln->tag);
 }
 
 
@@ -1280,7 +1281,7 @@ static void comp_list( void ) {
   Serial.println();
   for(uint16_t lix=0; lix<ln_num; lix++) {
     if( oix+1<comp_result.org_num && comp_result.org[oix+1].lix==lix ) { // A new .ORG section
-      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf(buf,40,"%04X |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf); }
+      if( comp_result.org[oix].addr1!=comp_result.org[oix].addr2 ) { snprintf_P(buf,40,PSTR("%04X |             | section %X end\r\n"),comp_result.org[oix].addr2, oix); Serial.print(buf); }
       oix++;
     }
     ln_t * ln= &ln_store[lix]; 
@@ -1291,27 +1292,27 @@ static void comp_list( void ) {
     if( len==0 ) {    
       Serial.print(F("     |             ")); 
     } else { 
-      snprintf(buf,40,"%04X | ",addr); 
+      snprintf_P(buf,40,PSTR("%04X | "),addr); 
       Serial.print(buf); 
       while( bix<len && bix<4 ) {
-        snprintf(buf,40,"%02X ",comp_get_byte(lix,bix)); 
+        snprintf_P(buf,40,PSTR("%02X "),comp_get_byte(lix,bix)); 
         Serial.print(buf); 
         bix++;
       }
       for(int i=len; i<4; i++ ) Serial.print(F("   "));
     }
     // Print linenum
-    snprintf(buf,40,"| %03X ",lix);
+    snprintf_P(buf,40,PSTR("| %03X "),lix);
     Serial.print(buf); 
     // Print source
     ln_snprint(buf,40,ln);
     Serial.println(buf); // END-OF_LINE
     // Special case: too many bytes to print, so we print a next line
     if( bix<len ) { 
-      snprintf(buf,40,"%04X | ",addr+bix); 
+      snprintf_P(buf,40,PSTR("%04X | "),addr+bix); 
       Serial.print(buf); 
       while( bix<len ) {
-        snprintf(buf,40,"%02X ",comp_get_byte(lix,bix)); 
+        snprintf_P(buf,40,PSTR("%02X "),comp_get_byte(lix,bix)); 
         Serial.print(buf); 
         bix++;
       }
@@ -1320,7 +1321,7 @@ static void comp_list( void ) {
     } 
   }
   // print final .ORG section end
-  snprintf(buf,40,"%04X |             | section %X end\r\n",comp_result.org[oix].addr2, oix); Serial.print(buf);
+  snprintf_P(buf,40,PSTR("%04X |             | section %X end\r\n"),comp_result.org[oix].addr2, oix); Serial.print(buf);
   // Vector?
   if( comp_result.add_reset_vector ) {
     Serial.println(F("FFFC | 00 02       | implicit section with reset vector")); 
@@ -1342,8 +1343,8 @@ static void comp_bin( void ) {
     if( len==0 ) continue;
     uint16_t addr= comp_get_addr(lix);
     for( uint8_t bix=0; bix<len; bix++ ) {
-      if( count==0 ) { snprintf(buf,40,"%04X:",addr);  Serial.print(buf); }
-      snprintf(buf,40," %02X",comp_get_byte(lix,bix)); 
+      if( count==0 ) { snprintf_P(buf,40,PSTR("%04X:"),addr);  Serial.print(buf); }
+      snprintf_P(buf,40,PSTR(" %02X"),comp_get_byte(lix,bix)); 
       Serial.print(buf); 
       count= (count+1) % 16;
       if( count==0 ) Serial.println();
@@ -1383,28 +1384,28 @@ static void comp_install( void ) {
 static void cmdprog_new(int argc, char * argv[]) {
   if( argc>3 ) { Serial.println(F("ERROR: too many arguments")); return; }
   if( argc==3 ) {
-    if( cmd_isprefix(PSTR("example"),argv[2]) ) { Serial.println(F("ERROR: expected 'example'")); return; }
+    if( !cmd_isprefix(PSTR("example"),argv[2]) ) { Serial.println(F("ERROR: expected 'example'")); return; }
   }
   // Delete all lines
   for( uint16_t i=0; i<ln_num; i++ ) ln_del(&ln_store[i]); 
   ln_num= 0;
   // Insert example
   if( argc==3 ) {
-    cmd_addstr("prog insert\r");
-    cmd_addstr("; hello all of you\r");
-    cmd_addstr("         .ORG 0200\r");
-    cmd_addstr("count    .EQBYTE 05\r");
-    cmd_addstr("         LDX #count\r");
-    cmd_addstr("loop     LDA data,x\r");
-    cmd_addstr("         STA 8000\r");
-    cmd_addstr("         DEX\r");
-    cmd_addstr("         BNE loop\r");
-    cmd_addstr("stop     JMP stop\r");
-    cmd_addstr("         .ORG 0300\r");
-    cmd_addstr("data     .BYTES 48,65,6C,6C,6F\r");
-    cmd_addstr("         .ORG FFFC\r");
-    cmd_addstr("         .WORDS 0200\r");
-    cmd_addstr("\r");
+    cmd_addstr_P(PSTR("prog insert\r"));
+    cmd_addstr_P(PSTR("; hello all of you\r"));
+    cmd_addstr_P(PSTR("         .ORG 0200\r"));
+    cmd_addstr_P(PSTR("count    .EQBYTE 05\r"));
+    cmd_addstr_P(PSTR("         LDX #count\r"));
+    cmd_addstr_P(PSTR("loop     LDA data,x\r"));
+    cmd_addstr_P(PSTR("         STA 8000\r"));
+    cmd_addstr_P(PSTR("         DEX\r"));
+    cmd_addstr_P(PSTR("         BNE loop\r"));
+    cmd_addstr_P(PSTR("stop     JMP stop\r"));
+    cmd_addstr_P(PSTR("         .ORG 0300\r"));
+    cmd_addstr_P(PSTR("data     .BYTES 48,65,6C,6C,6F\r"));
+    cmd_addstr_P(PSTR("         .ORG FFFC\r"));
+    cmd_addstr_P(PSTR("         .WORDS 0200\r"));
+    cmd_addstr_P(PSTR("\r"));
   } 
 }
 
@@ -1429,7 +1430,7 @@ static void cmdprog_list(int argc, char * argv[]) {
   }
   char buf[40];
   if( ln_num>0 ) for(uint16_t i=num1; i<=num2; i++) {
-    snprintf(buf,40,"%03X ",i);
+    snprintf_P(buf,40,PSTR("%03X "),i);
     Serial.print(buf); 
     ln_snprint(buf,40,&ln_store[i]);
     Serial.println(buf); 
