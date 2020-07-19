@@ -26,20 +26,32 @@ On AVR, that is known as PROGMEM.
 Note that the AVRs have a Harvard architecture.
 This means that every address occurs twice, once as DATAMEM (RAM), once as PROGMEM (flash).
 This means that if a pointer like `char * p` has the value 0x1000, it could address location 0x1000 in RAM 
-or 0x1000 in flash. 
+or 0x1000 in flash. The compiler doesn't know, the programmer has to help.
 
 Most of this is hidden in the library.
 Except for the return values of type `char *`.
-If you want to `print` those, embed them in the `f(...)` macro.
-If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_P`.
-See the [isa6502dump](#isa6502dump) example.
+For example, the library offers the function
 
-For details on PROGMEM see [below](#progmem-details).
+```cpp
+/*PROGMEM*/ const char * isa_addrmode_aname ( int aix );    
+```
+
+In other words `isa_addrmode_aname` returns a pointer to characters in PROGMEM.
+
+- If you want to `print` those, embed them in the `f(...)` macro.  
+  `Serial.print( f(isa_addrmode_aname(4)) )`
+- If you want to `printf` those, use the `%S` format (capital S).  
+  `sprintf(buf, "out[%S]",isa_addrmode_aname(4))`
+- If you want to compare then, or get their length, use the `_P` version from the standard library: `strcmp_P` or `strlen_P`.  
+  `if( strcmp_P("ABS",isa_addrmode_aname(4))==0 ) {}`
+
+For actual sample code, see [isa6502basic](#isa6502basic) or one of the other [examples](examples).
+
+For more explanation on PROGMEM see [below](#progmem-details).
 
 ## Examples
 
 There are examples of increasing code size.
-
 
 ### isa6502basic
 
@@ -338,14 +350,14 @@ For literals in `print`, there is no need to make an explicit variable:
 Serial.println( f( PSTR("Example") ) );
 ```
 
-This cobination `f(PSTR("..."))` occurs so often, that Arduino has made a macro for that: `F("...")`. 
+This combination `f(PSTR("..."))` occurs so often, that Arduino has made a macro for that: `F("...")`. 
 
 ```cpp
 Serial.println( F("Example") );
 ```
 
 You now maybe understand why _my_ macro is called lower-case `f()`.
-Why `F` is published by Arduino and `f` not is a mystery to me.
+Why `F` is published by Arduino and `f` not, is a mystery to me.
 By the way, on my system `F` is published in 
 [wstring.h](https://github.com/Robots-Linti/DuinoPack-v1.2/blob/master/win/hardware/arduino/avr/cores/arduino/WString.h#L38): 
 `C:\Program Files (x86)\Arduino\hardware\arduino\avr\cores\arduino\WString.h`.
