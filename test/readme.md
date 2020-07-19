@@ -10,7 +10,7 @@ There is a test suite that tests the command interpreter by sending commands and
 The test suite assumes you have 
 
 - an Arduino board (typically ATmega2560)
-- flashed with [isa6502prog](../examples/isa6502prog]
+- flashed with [isa6502prog](../examples/isa6502prog)
 - hooked the Arduino to your PC
 - 'COM11` as the virtual port for your Arduino  
   (if yours has a different name, change it in [cmd_test.py](cmd_test.py) line 12)
@@ -25,7 +25,7 @@ To run the test take these steps
 - Run `setup.bat` to _create_ a virtual environment for Python.
   > Note, virtual environments are a built-in feature of Python, see [docs.python.org](https://docs.python.org/3/library/venv.html) for details. They ensures that any changes to the Python environment, like installing packages, is confined to the local (virtual) environment, and does not effect the global Python system environment. A virtual environment is a full copy, including a copy of the Python interpreter and freshly downloaded packages. Note, that `setup` creates the `env` directory that holds the virtual environment. This directory caches the Python interpreter and packages. You can simply delete the `env` directory at any time, and recreate it by running `setup` again. Note also that it does not harm to rerun `setup` when `env` exists; it will check if latest-greatest is present in `env`, and if not, download it.
 - Do _not_ close the command window; we need the _activated_ virtual environment.
-  > The `setup` also _activates_ the virtual environment. You can see that from the prompt, it is prefixed with `(venv)`. If you want to restart testing at a later stage, you can open a new command window and run `setup` to (got to latest-greates and) activate the virtual environment, or you can activate manually by running `env\Scripts\activate.bat`.
+  > The `setup` also _activates_ the virtual environment. You can see that from the prompt, it is prefixed with `(venv)`. If you want to restart testing at a later stage, you can open a new command window and run `setup` to (get latest-greates and) activate the virtual environment, or you can (only) activate manually by running `env\Scripts\activate.bat`.
 - Execute the test by running `run.bat`.
   > By default this runs all tests like `Test_help`, `Test_echo`, etc. Edit the batch file to remove some test to speed up testing (it is surprisingly slow). 
 
