@@ -1200,8 +1200,8 @@ static void comp_compile_pass5( int * errors, int * warnings ) {
         }
       }
       // does it contain the reset vector?
-      found_fffc |= comp_result.org[oix].addr1<=0xfffc && 0xfffc<comp_result.org[oix].addr2;
-      found_fffd |= comp_result.org[oix].addr1<=0xfffd && 0xfffd<comp_result.org[oix].addr2;
+      found_fffc |= comp_result.org[oix].addr1<=0xfffc && 0xfffc<=comp_result.org[oix].addr2-1;
+      found_fffd |= comp_result.org[oix].addr1<=0xfffd && 0xfffd<=comp_result.org[oix].addr2-1;
     }
   }
   if( ! found_fffc && ! found_fffd ) { cmd_printf_P(PSTR("WARNING: reset vector missing (FFFC and/or FFFD), assuming 0200\r\n")); (*warnings)++; }
@@ -1268,7 +1268,7 @@ static void comp_map( void ) {
     } else {
       cmd_printf_P(PSTR("(ln %03X) "),comp_result.org[oix].lix);
     }
-    cmd_printf_P(PSTR(" %04X-%04X "),comp_result.org[oix].addr1,comp_result.org[oix].addr2);
+    cmd_printf_P(PSTR(" %04X-%04X\r\n"),comp_result.org[oix].addr1,comp_result.org[oix].addr2);
   }
 }
 
