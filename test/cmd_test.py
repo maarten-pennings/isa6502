@@ -9,7 +9,7 @@ import serial
 
 try:
   # ports=cmd.findports()
-  port= 'COM4'
+  port= 'COM11'
   c= cmd.Cmd(port)
   c.close(True)
 except serial.SerialException :  
@@ -343,7 +343,7 @@ class Test_man(unittest.TestCase):
     self.assertIn("inst: CLV CMP CPX CPY DEC DEX DEY EOR INC INX INY JMP JSR LDA LDX LDY\r\n",r) 
     self.assertIn("inst: LSR NOP ORA PHA PHP PLA PLP ROL ROR RTI RTS SBC SEC SED SEI STA\r\n",r) 
     self.assertIn("inst: STX STY TAX TAY TSX TXA TXS TYA\r\n",r) 
-    self.assertIn("addr: ABS ABX ABY ACC IMM IMP IND REL ZIX ZIY ZPG ZPX ZPY\r\n",r) 
+    self.assertIn("addr: ABS ABX ABY ACC IMM IMP IND REL ZIY ZPG ZPX ZPY ZXI\r\n",r) 
 
   # The 'man xxx' command lists instruction, addressing mode or opcodes
   def test_instamode(self):
@@ -393,44 +393,44 @@ class Test_man(unittest.TestCase):
        "|  |00 |01 |02 |03 |04 |05 |06 |07 |08 |09 |0A |0B |0C |0D |0E |0F |\r\n"\
        "+--+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+\r\n"\
        "|00|BRK|ORA|   |   |   |ORA|ASL|   |PHP|ORA|ASL|   |   |ORA|ASL|   |\r\n"\
-       "|  |IMP|ZIX|   |   |   |ZPG|ZPG|   |IMP|IMM|ACC|   |   |ABS|ABS|   |\r\n"\
+       "|  |IMP|ZXI|   |   |   |ZPG|ZPG|   |IMP|IMM|ACC|   |   |ABS|ABS|   |\r\n"\
        "|10|BPL|ORA|   |   |   |ORA|ASL|   |CLC|ORA|   |   |   |ORA|ASL|   |\r\n"\
        "|  |REL|ZIY|   |   |   |ZPX|ZPX|   |IMP|ABY|   |   |   |ABX|ABX|   |\r\n"\
        "|20|JSR|AND|   |   |BIT|AND|ROL|   |PLP|AND|ROL|   |BIT|AND|ROL|   |\r\n"\
-       "|  |ABS|ZIX|   |   |ZPG|ZPG|ZPG|   |IMP|IMM|ACC|   |ABS|ABS|ABS|   |\r\n"\
+       "|  |ABS|ZXI|   |   |ZPG|ZPG|ZPG|   |IMP|IMM|ACC|   |ABS|ABS|ABS|   |\r\n"\
        "|30|BMI|AND|   |   |   |AND|ROL|   |SEC|AND|   |   |   |AND|ROL|   |\r\n"\
        "|  |REL|ZIY|   |   |   |ZPX|ZPX|   |IMP|ABY|   |   |   |ABX|ABX|   |\r\n"\
        "+--+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+\r\n"\
        "|40|RTI|EOR|   |   |   |EOR|LSR|   |PHA|EOR|LSR|   |JMP|EOR|LSR|   |\r\n"\
-       "|  |IMP|ZIX|   |   |   |ZPG|ZPG|   |IMP|IMM|ACC|   |ABS|ABS|ABS|   |\r\n"\
+       "|  |IMP|ZXI|   |   |   |ZPG|ZPG|   |IMP|IMM|ACC|   |ABS|ABS|ABS|   |\r\n"\
        "|50|BVC|EOR|   |   |   |EOR|LSR|   |CLI|EOR|   |   |   |EOR|LSR|   |\r\n"\
        "|  |REL|ZIY|   |   |   |ZPX|ZPX|   |IMP|ABY|   |   |   |ABX|ABX|   |\r\n"\
        "|60|RTS|ADC|   |   |   |ADC|ROR|   |PLA|ADC|ROR|   |JMP|ADC|ROR|   |\r\n"\
-       "|  |IMP|ZIX|   |   |   |ZPG|ZPG|   |IMP|IMM|ACC|   |IND|ABS|ABS|   |\r\n"\
+       "|  |IMP|ZXI|   |   |   |ZPG|ZPG|   |IMP|IMM|ACC|   |IND|ABS|ABS|   |\r\n"\
        "|70|BVS|ADC|   |   |   |ADC|ROR|   |SEI|ADC|   |   |   |ADC|ROR|   |\r\n"\
        "|  |REL|ZIY|   |   |   |ZPX|ZPX|   |IMP|ABY|   |   |   |ABX|ABX|   |\r\n"\
        "+--+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+\r\n"\
        "|80|   |STA|   |   |STY|STA|STX|   |DEY|   |TXA|   |STY|STA|STX|   |\r\n"\
-       "|  |   |ZIX|   |   |ZPG|ZPG|ZPG|   |IMP|   |IMP|   |ABS|ABS|ABS|   |\r\n"\
+       "|  |   |ZXI|   |   |ZPG|ZPG|ZPG|   |IMP|   |IMP|   |ABS|ABS|ABS|   |\r\n"\
        "|90|BCC|STA|   |   |STY|STA|STX|   |TYA|STA|TXS|   |   |STA|   |   |\r\n"\
        "|  |REL|ZIY|   |   |ZPX|ZPX|ZPY|   |IMP|ABY|IMP|   |   |ABX|   |   |\r\n"\
        "|A0|LDY|LDA|LDX|   |LDY|LDA|LDX|   |TAY|LDA|TAX|   |LDY|LDA|LDX|   |\r\n"\
-       "|  |IMM|ZIX|IMM|   |ZPG|ZPG|ZPG|   |IMP|IMM|IMP|   |ABS|ABS|ABS|   |\r\n"\
+       "|  |IMM|ZXI|IMM|   |ZPG|ZPG|ZPG|   |IMP|IMM|IMP|   |ABS|ABS|ABS|   |\r\n"\
        "|B0|BCS|LDA|   |   |LDY|LDA|LDX|   |CLV|LDA|TSX|   |LDY|LDA|LDX|   |\r\n"\
        "|  |REL|ZIY|   |   |ZPX|ZPX|ZPY|   |IMP|ABY|IMP|   |ABX|ABX|ABY|   |\r\n"\
        "+--+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+\r\n"\
        "|C0|CPY|CMP|   |   |CPY|CMP|DEC|   |INY|CMP|DEX|   |CPY|CMP|DEC|   |\r\n"\
-       "|  |IMM|ZIX|   |   |ZPG|ZPG|ZPG|   |IMP|IMM|IMP|   |ABS|ABS|ABS|   |\r\n"\
+       "|  |IMM|ZXI|   |   |ZPG|ZPG|ZPG|   |IMP|IMM|IMP|   |ABS|ABS|ABS|   |\r\n"\
        "|D0|BNE|CMP|   |   |   |CMP|DEC|   |CLD|CMP|   |   |   |CMP|DEC|   |\r\n"\
        "|  |REL|ZIY|   |   |   |ZPX|ZPX|   |IMP|ABY|   |   |   |ABX|ABX|   |\r\n"\
        "|E0|CPX|SBC|   |   |CPX|SBC|INC|   |INX|SBC|NOP|   |CPX|SBC|INC|   |\r\n"\
-       "|  |IMM|ZIX|   |   |ZPG|ZPG|ZPG|   |IMP|IMM|IMP|   |ABS|ABS|ABS|   |\r\n"\
+       "|  |IMM|ZXI|   |   |ZPG|ZPG|ZPG|   |IMP|IMM|IMP|   |ABS|ABS|ABS|   |\r\n"\
        "|F0|BEQ|SBC|   |   |   |SBC|INC|   |SED|SBC|   |   |   |SBC|INC|   |\r\n"\
        "|  |REL|ZIY|   |   |   |ZPX|ZPX|   |IMP|ABY|   |   |   |ABX|ABX|   |\r\n"\
        "+--+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+\r\n"
     self.assertEqual(t,r) 
     r= self.cmd.exec("man table ldx")
-    self.assertIn("|LDX| AE|   | BE|   | A2|   |   |   |   |   | A6|   | B6|",r) 
+    self.assertIn("|LDX| AE|   | BE|   | A2|   |   |   |   | A6|   | B6|   |",r) 
     r= self.cmd.exec("man table ld?")
     self.assertIn("found 3 instructions",r) 
     r= self.cmd.exec("man table ??x")
@@ -892,7 +892,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("ADC A8B9,X","> ") # ABX
     self.cmd.exec("ADC A8B9,Y","> ") # ABY
     self.cmd.exec("ADC #A8","> ") # IMM
-    self.cmd.exec("ADC (A8,X)","> ") # ZIX
+    self.cmd.exec("ADC (A8,X)","> ") # ZXI
     self.cmd.exec("ADC (A8),Y","> ") # ZIY
     self.cmd.exec("ADC *A8","> ") # ZPG
     self.cmd.exec("ADC *A8,X","> ") # ZPX
@@ -907,7 +907,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("AND A8B9,X","> ") # ABX
     self.cmd.exec("AND A8B9,Y","> ") # ABY
     self.cmd.exec("AND #A8","> ") # IMM
-    self.cmd.exec("AND (A8,X)","> ") # ZIX
+    self.cmd.exec("AND (A8,X)","> ") # ZXI
     self.cmd.exec("AND (A8),Y","> ") # ZIY
     self.cmd.exec("AND *A8","> ") # ZPG
     self.cmd.exec("AND *A8,X","> ") # ZPX
@@ -1047,7 +1047,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("CMP A8B9,X","> ") # ABX
     self.cmd.exec("CMP A8B9,Y","> ") # ABY
     self.cmd.exec("CMP #A8","> ") # IMM
-    self.cmd.exec("CMP (A8,X)","> ") # ZIX
+    self.cmd.exec("CMP (A8,X)","> ") # ZXI
     self.cmd.exec("CMP (A8),Y","> ") # ZIY
     self.cmd.exec("CMP *A8","> ") # ZPG
     self.cmd.exec("CMP *A8,X","> ") # ZPX
@@ -1109,7 +1109,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("EOR A8B9,X","> ") # ABX
     self.cmd.exec("EOR A8B9,Y","> ") # ABY
     self.cmd.exec("EOR #A8","> ") # IMM
-    self.cmd.exec("EOR (A8,X)","> ") # ZIX
+    self.cmd.exec("EOR (A8,X)","> ") # ZXI
     self.cmd.exec("EOR (A8),Y","> ") # ZIY
     self.cmd.exec("EOR *A8","> ") # ZPG
     self.cmd.exec("EOR *A8,X","> ") # ZPX
@@ -1168,7 +1168,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("LDA A8B9,X","> ") # ABX
     self.cmd.exec("LDA A8B9,Y","> ") # ABY
     self.cmd.exec("LDA #A8","> ") # IMM
-    self.cmd.exec("LDA (A8,X)","> ") # ZIX
+    self.cmd.exec("LDA (A8,X)","> ") # ZXI
     self.cmd.exec("LDA (A8),Y","> ") # ZIY
     self.cmd.exec("LDA *A8","> ") # ZPG
     self.cmd.exec("LDA *A8,X","> ") # ZPX
@@ -1227,7 +1227,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("ORA A8B9,X","> ") # ABX
     self.cmd.exec("ORA A8B9,Y","> ") # ABY
     self.cmd.exec("ORA #A8","> ") # IMM
-    self.cmd.exec("ORA (A8,X)","> ") # ZIX
+    self.cmd.exec("ORA (A8,X)","> ") # ZXI
     self.cmd.exec("ORA (A8),Y","> ") # ZIY
     self.cmd.exec("ORA *A8","> ") # ZPG
     self.cmd.exec("ORA *A8,X","> ") # ZPX
@@ -1314,7 +1314,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("SBC A8B9,X","> ") # ABX
     self.cmd.exec("SBC A8B9,Y","> ") # ABY
     self.cmd.exec("SBC #A8","> ") # IMM
-    self.cmd.exec("SBC (A8,X)","> ") # ZIX
+    self.cmd.exec("SBC (A8,X)","> ") # ZXI
     self.cmd.exec("SBC (A8),Y","> ") # ZIY
     self.cmd.exec("SBC *A8","> ") # ZPG
     self.cmd.exec("SBC *A8,X","> ") # ZPX
@@ -1352,7 +1352,7 @@ class Test_asm(unittest.TestCase):
     self.cmd.exec("STA A8B9","> ") # ABS
     self.cmd.exec("STA A8B9,X","> ") # ABX
     self.cmd.exec("STA A8B9,Y","> ") # ABY
-    self.cmd.exec("STA (A8,X)","> ") # ZIX
+    self.cmd.exec("STA (A8,X)","> ") # ZXI
     self.cmd.exec("STA (A8),Y","> ") # ZIY
     self.cmd.exec("STA *A8","> ") # ZPG
     self.cmd.exec("STA *A8,X","> ") # ZPX

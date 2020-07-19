@@ -3,7 +3,7 @@
 import sys
 import datetime
 
-version=6
+version=7
 
 # ADDRESSING MODES ####################################################
 
@@ -36,7 +36,7 @@ addrmodes= [ # Global variable of all addressing modes
   AddrMode("ZPX", 2, "zero page, indexed with x", "OPC *LL,X"),
   AddrMode("ZPY", 2, "zero page, indexed with y", "OPC *LL,Y"),
 
-  AddrMode("ZIX", 2, "zero page, indexed with x, indirect", "OPC (LL,X)"),
+  AddrMode("ZXI", 2, "zero page, indexed with x, indirect", "OPC (LL,X)"),
   AddrMode("ZIY", 2, "zero page, indirect, indexed with y", "OPC (LL),Y"),
 
   AddrMode("REL", 2, "relative to PC", "OPC +NN"),
@@ -99,7 +99,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x6D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x7D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x79, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0x61, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0x61, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0x71, 5, 1),
     ]
   ),  
@@ -111,7 +111,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x2D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x3D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x39, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0x21, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0x21, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0x31, 5, 1),
     ]
   ),
@@ -203,7 +203,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0xCD, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0xDD, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0xD9, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0xC1, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0xC1, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0xD1, 5, 1),
     ]
   ),
@@ -247,7 +247,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x4D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x5D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x59, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0x41, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0x41, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0x51, 5, 1),
     ]
   ),
@@ -288,7 +288,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0xAD, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0xBD, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0xB9, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0xA1, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0xA1, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0xB1, 5, 1),
     ]
   ),
@@ -332,7 +332,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x0D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x1D, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0x19, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0x01, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0x01, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0x11, 5, 1),
     ]
   ),
@@ -392,7 +392,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0xED, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0xFD, 4, 1),
       Variant( addrmode_find_by_name("ABY"), 0xF9, 4, 1),
-      Variant( addrmode_find_by_name("ZIX"), 0xE1, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0xE1, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0xF1, 5, 1),
     ]
   ),
@@ -418,7 +418,7 @@ instructions= [
       Variant( addrmode_find_by_name("ABS"), 0x8D, 4, 0),
       Variant( addrmode_find_by_name("ABX"), 0x9D, 5, 0),
       Variant( addrmode_find_by_name("ABY"), 0x99, 5, 0),
-      Variant( addrmode_find_by_name("ZIX"), 0x81, 6, 0),
+      Variant( addrmode_find_by_name("ZXI"), 0x81, 6, 0),
       Variant( addrmode_find_by_name("ZIY"), 0x91, 6, 0),
     ]
   ),
@@ -897,10 +897,10 @@ def print_h_header() :
   print("// This means you need special (code memory) instructions to read them.")
   print("// The access methods in this module take care of this for a part.")
   print("// However, when the returned value is a string (a pointer to characters), the characters are also in PROGMEM.")
-  print("// Use these pointers with xxx_P() functions, the f() macro, or the %S print format (capital S!)")
+  print("// Use these pointers with the f() macro, the %S print format (capital S!), or the xxx_P() functions. ")
   print("//   Serial.print( f(isa_addrmode_aname(4)) );")
-  print("//   if( strcmp_P(\"ABS\",isa_addrmode_aname(4))==0 ) {}")
   print("//   sprintf(buf, \"out[%S]\",isa_addrmode_aname(4))")
+  print("//   if( strcmp_P(\"ABS\",isa_addrmode_aname(4))==0 ) {}")
   print()
   print()
   print("// Recall that F(xxx) puts literal xxx in PROGMEM _and_ makes it printable.")

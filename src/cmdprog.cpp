@@ -1073,7 +1073,7 @@ static void comp_compile_pass1( int * errors, int * warnings ) {
         break;         
       case ISA_AIX_IMM :
       case ISA_AIX_REL :
-      case ISA_AIX_ZIX :
+      case ISA_AIX_ZXI :
       case ISA_AIX_ZIY :
       case ISA_AIX_ZPG :
       case ISA_AIX_ZPX :
