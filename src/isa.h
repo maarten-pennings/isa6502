@@ -7,7 +7,7 @@
 #include "stdint.h"
 
 
-#define ISA_VERSION 7
+#define ISA_VERSION "7.1.0"
 
 
 // WARNING

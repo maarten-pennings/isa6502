@@ -1182,6 +1182,7 @@ static void comp_compile_pass4( int * errors, int * warnings ) {
 
 // Pass five of the compiler: check (.org) sections
 static void comp_compile_pass5( int * errors, int * warnings ) {
+  #define INSIDE(lo,val,hi)   ( ((lo)<=(val)) && ((val)<=(hi)) ) // todo: not ok when hi wraps around
   bool found_fffc= false;
   bool found_fffd= false;
   for( uint8_t oix=0; oix<comp_result.org_num; oix++ ) {
@@ -1193,15 +1194,15 @@ static void comp_compile_pass5( int * errors, int * warnings ) {
       // .org section oix is not empty, does it overlap with any other
       for( uint8_t oix2=oix+1; oix2<comp_result.org_num; oix2++ ) if( comp_result.org[oix2].addr1!=comp_result.org[oix2].addr2 ) {
         // .org section oix2 is also not empty, does oix overlap with it
-        bool a1= comp_result.org[oix2].addr1<=comp_result.org[oix].addr1 && comp_result.org[oix].addr1<comp_result.org[oix2].addr2;
-        bool a2= comp_result.org[oix2].addr1<=comp_result.org[oix].addr2-1 && comp_result.org[oix].addr2-1<comp_result.org[oix2].addr2;
+        bool a1= INSIDE( comp_result.org[oix2].addr1 , comp_result.org[oix].addr1   , comp_result.org[oix2].addr2-1 );
+        bool a2= INSIDE( comp_result.org[oix2].addr1 , comp_result.org[oix].addr2-1 , comp_result.org[oix2].addr2-1 );
         if( a1 || a2 ) {
           cmd_printf_P(PSTR("WARNING: .ORG section on line %X overlaps with the one on line %X\r\n"),comp_result.org[oix].lix,comp_result.org[oix2].lix); (*warnings)++;
         }
       }
       // does it contain the reset vector?
-      found_fffc |= comp_result.org[oix].addr1<=0xfffc && 0xfffc<=comp_result.org[oix].addr2-1;
-      found_fffd |= comp_result.org[oix].addr1<=0xfffd && 0xfffd<=comp_result.org[oix].addr2-1;
+      found_fffc |= INSIDE( comp_result.org[oix].addr1 , 0xfffc , comp_result.org[oix].addr2-1 );
+      found_fffd |= INSIDE( comp_result.org[oix].addr1 , 0xfffd , comp_result.org[oix].addr2-1 );
     }
   }
   if( ! found_fffc && ! found_fffd ) { cmd_printf_P(PSTR("WARNING: reset vector missing (FFFC and/or FFFD), assuming 0200\r\n")); (*warnings)++; }
@@ -1230,7 +1231,7 @@ static bool comp_compile( void ) {
 static void comp_map( void ) {
   int count=0;
   Serial.println();
-  cmd_printf_P(PSTR("labels: lbl id, line num, lbl, Refd//Word/Byte//Other/Def/Use, def lbl id, val\r\n")); 
+  cmd_printf_P(PSTR("labels: lbl#. (ln ln#) \"lbl\" Refd|Word|Byte|Other|Def|Use (def lbl#) val #\r\n")); 
   for( int fsx=1; fsx<FS_NUM; fsx++) {
     if( fs_store[fsx][0]=='\0' ) continue;
     comp_fs_t * cfs= &comp_result.fs[fsx];
@@ -1257,9 +1258,9 @@ static void comp_map( void ) {
     Serial.println();
     count++;
   }
-  if( count==0 ) Serial.println(f(" none"));
+  if( count==0 ) Serial.println(F(" none"));
   Serial.println();
-  cmd_printf_P(PSTR("sections: section id, line num, start addr, end addr\r\n")); 
+  cmd_printf_P(PSTR("sections: sec#. (ln ln#) startaddr-endaddr (size #)\r\n")); 
   for( uint8_t oix=0; oix<comp_result.org_num; oix++ ) {
     if( oix==0 && comp_result.org[oix].addr1==comp_result.org[oix].addr2 ) continue;
     cmd_printf_P(PSTR(" %02X. "),oix);
@@ -1268,7 +1269,8 @@ static void comp_map( void ) {
     } else {
       cmd_printf_P(PSTR("(ln %03X) "),comp_result.org[oix].lix);
     }
-    cmd_printf_P(PSTR(" %04X-%04X\r\n"),comp_result.org[oix].addr1,comp_result.org[oix].addr2);
+    cmd_printf_P(PSTR("%04X-%04X "),comp_result.org[oix].addr1,comp_result.org[oix].addr2);
+    cmd_printf_P(PSTR("(size %X)\r\n"),comp_result.org[oix].addr2-comp_result.org[oix].addr1);
   }
 }
 
